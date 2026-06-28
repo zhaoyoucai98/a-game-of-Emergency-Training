@@ -25,7 +25,7 @@ const MIME = {
 
 const server = http.createServer((req, res) => {
   let urlPath = decodeURIComponent(req.url.split('?')[0]);
-  if (urlPath === '/') urlPath = '/index2.html';
+  if (urlPath === '/') urlPath = '/index.html';
   const filePath = path.join(ROOT, urlPath);
 
   if (!filePath.startsWith(ROOT)) {
@@ -51,7 +51,7 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
   console.log('----------------------------------------');
   console.log(' HTTP Server running at:');
-  console.log('   http://localhost:' + PORT + '/index2.html');
+  console.log('   http://localhost:' + PORT + '/index.html');
   console.log('   http://localhost:' + PORT + '/');
   console.log(' Root: ' + ROOT);
   console.log(' Press Ctrl+C to stop');
