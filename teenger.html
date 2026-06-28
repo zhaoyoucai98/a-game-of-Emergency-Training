@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Three.js 轻量化青年人物 3D 展示</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #eef2f6;
+      font-family: Arial, "Microsoft YaHei", sans-serif;
+    }
+
+    #app {
+      width: 100%;
+      height: 100%;
+    }
+
+    .panel {
+      position: fixed;
+      left: 16px;
+      top: 16px;
+      z-index: 10;
+      padding: 12px 14px;
+      border-radius: 12px;
+      color: #1f2937;
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+      backdrop-filter: blur(10px);
+      line-height: 1.6;
+      font-size: 13px;
+    }
+
+    .panel strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div class="panel">
+    <strong>轻量化青年人物 3D 模型</strong>
+    写实简约青年 / WebGL / Three.js<br />
+    低面数几何体组合，适合网页实时展示
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const container = document.getElementById('app');
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xeef2f6);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 1.65, 4.4);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.05, 0);
+    controls.enableDamping = true;
+    controls.enablePan = false;
+    controls.minDistance = 2.2;
+    controls.maxDistance = 7;
+
+    const ambientLight = new THREE.HemisphereLight(0xffffff, 0xb5c2d0, 1.8);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.4);
+    keyLight.position.set(3, 5, 4);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(1024, 1024);
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0xcfe8ff, 0.8);
+    fillLight.position.set(-3, 2.5, 3);
+    scene.add(fillLight);
+
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(2.1, 48),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82, metalness: 0 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const grid = new THREE.GridHelper(4.2, 20, 0xcbd5e1, 0xe2e8f0);
+    grid.material.opacity = 0.45;
+    grid.material.transparent = true;
+    scene.add(grid);
+
+    const materials = {
+      skin: new THREE.MeshStandardMaterial({ color: 0xf0bd94, roughness: 0.62, metalness: 0 }),
+      hair: new THREE.MeshStandardMaterial({ color: 0x25211d, roughness: 0.78, metalness: 0 }),
+      hoodie: new THREE.MeshStandardMaterial({ color: 0x3f6fa5, roughness: 0.74, metalness: 0 }),
+      pants: new THREE.MeshStandardMaterial({ color: 0x263447, roughness: 0.76, metalness: 0 }),
+      shoes: new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.68, metalness: 0 }),
+      sole: new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.7, metalness: 0 }),
+      eye: new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.45, metalness: 0 }),
+      mouth: new THREE.MeshStandardMaterial({ color: 0xa05a4f, roughness: 0.7, metalness: 0 })
+    };
+
+    const person = new THREE.Group();
+    person.name = 'lightweight_young_male_character_under_15000_faces';
+    scene.add(person);
+
+    function addMesh(parent, geometry, material, position, scale, rotation = [0, 0, 0], name = '') {
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(position[0], position[1], position[2]);
+      mesh.scale.set(scale[0], scale[1], scale[2]);
+      mesh.rotation.set(rotation[0], rotation[1], rotation[2]);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.name = name;
+      parent.add(mesh);
+      return mesh;
+    }
+
+    const headGeo = new THREE.SphereGeometry(0.28, 28, 18);
+    const bodyGeo = new THREE.CapsuleGeometry(0.34, 0.54, 8, 18);
+    const neckGeo = new THREE.CylinderGeometry(0.11, 0.12, 0.16, 18);
+    const limbGeo = new THREE.CapsuleGeometry(0.075, 0.48, 6, 14);
+    const legGeo = new THREE.CapsuleGeometry(0.09, 0.64, 6, 14);
+    const shoeGeo = new THREE.BoxGeometry(0.22, 0.09, 0.36, 2, 1, 2);
+    const eyeGeo = new THREE.SphereGeometry(0.026, 12, 8);
+    const browGeo = new THREE.BoxGeometry(0.08, 0.012, 0.012);
+    const mouthGeo = new THREE.BoxGeometry(0.11, 0.014, 0.012);
+
+    addMesh(person, legGeo, materials.pants, [-0.13, 0.53, 0], [1, 1, 1], [0.03, 0, -0.03], 'left_leg');
+    addMesh(person, legGeo, materials.pants, [0.13, 0.53, 0], [1, 1, 1], [0.03, 0, 0.03], 'right_leg');
+    addMesh(person, shoeGeo, materials.shoes, [-0.13, 0.07, 0.05], [1, 1, 1], [0, 0.05, 0], 'left_shoe');
+    addMesh(person, shoeGeo, materials.shoes, [0.13, 0.07, 0.05], [1, 1, 1], [0, -0.05, 0], 'right_shoe');
+    addMesh(person, shoeGeo, materials.sole, [-0.13, 0.025, 0.05], [1.04, 0.35, 1.04], [0, 0.05, 0], 'left_sole');
+    addMesh(person, shoeGeo, materials.sole, [0.13, 0.025, 0.05], [1.04, 0.35, 1.04], [0, -0.05, 0], 'right_sole');
+
+    addMesh(person, bodyGeo, materials.hoodie, [0, 1.16, 0], [1.03, 1, 0.82], [0, 0, 0], 'simple_hoodie_body');
+    addMesh(person, new THREE.TorusGeometry(0.22, 0.035, 10, 28, Math.PI), materials.hoodie, [0, 1.48, -0.03], [1.15, 0.75, 0.72], [Math.PI, 0, 0], 'hoodie_collar');
+    addMesh(person, neckGeo, materials.skin, [0, 1.58, 0], [1, 1, 1], [0, 0, 0], 'neck');
+
+    addMesh(person, limbGeo, materials.hoodie, [-0.5, 1.12, 0], [1, 1, 1], [0.05, 0, -0.28], 'left_arm');
+    addMesh(person, limbGeo, materials.hoodie, [0.5, 1.12, 0], [1, 1, 1], [0.05, 0, 0.28], 'right_arm');
+    addMesh(person, new THREE.SphereGeometry(0.08, 14, 10), materials.skin, [-0.66, 0.8, 0.02], [1, 1, 1], [0, 0, 0], 'left_hand');
+    addMesh(person, new THREE.SphereGeometry(0.08, 14, 10), materials.skin, [0.66, 0.8, 0.02], [1, 1, 1], [0, 0, 0], 'right_hand');
+
+    addMesh(person, headGeo, materials.skin, [0, 1.88, 0], [0.9, 1.06, 0.86], [0, 0, 0], 'clean_natural_face');
+    addMesh(person, new THREE.SphereGeometry(0.285, 28, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), materials.hair, [0, 1.98, -0.005], [0.96, 0.78, 0.9], [0, 0, 0], 'short_black_hair');
+    addMesh(person, new THREE.BoxGeometry(0.34, 0.08, 0.18, 3, 1, 1), materials.hair, [0, 2.03, 0.15], [1, 1, 1], [-0.15, 0, 0], 'front_hair');
+
+    addMesh(person, eyeGeo, materials.eye, [-0.09, 1.9, 0.225], [1, 1, 1], [0, 0, 0], 'left_eye');
+    addMesh(person, eyeGeo, materials.eye, [0.09, 1.9, 0.225], [1, 1, 1], [0, 0, 0], 'right_eye');
+    addMesh(person, browGeo, materials.hair, [-0.09, 1.955, 0.23], [1, 1, 1], [0, 0, 0.06], 'left_brow');
+    addMesh(person, browGeo, materials.hair, [0.09, 1.955, 0.23], [1, 1, 1], [0, 0, -0.06], 'right_brow');
+    addMesh(person, mouthGeo, materials.mouth, [0, 1.79, 0.237], [1, 1, 1], [0.04, 0, 0], 'calm_mouth');
+
+    const strings = new THREE.Group();
+    person.add(strings);
+    addMesh(strings, new THREE.CylinderGeometry(0.008, 0.008, 0.23, 8), materials.shoes, [-0.055, 1.35, 0.285], [1, 1, 1], [0.28, 0, 0.05], 'left_hoodie_string');
+    addMesh(strings, new THREE.CylinderGeometry(0.008, 0.008, 0.23, 8), materials.shoes, [0.055, 1.35, 0.285], [1, 1, 1], [0.28, 0, -0.05], 'right_hoodie_string');
+
+    const targetY = { value: 0 };
+    let time = 0;
+
+    function animateCharacter(delta) {
+      time += delta;
+      const breathe = Math.sin(time * 2.2) * 0.012;
+      person.position.y = targetY.value + breathe;
+      person.rotation.y = Math.sin(time * 0.55) * 0.08;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = Math.min(0.033, renderer.info.render.frame ? 0.016 : 0.016);
+      animateCharacter(delta);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    });
+  </script>
+</body>
+</html>

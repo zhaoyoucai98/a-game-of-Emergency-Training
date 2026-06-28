@@ -1,0 +1,877 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>急救演练 · 分身协作</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.js",
+    "three/addons/": "./vendor/three/examples/jsm/"
+  }
+}
+</script>
+<style>
+  :root{--paper:#FAFAF9;--surface:#FFF;--ink:#16181D;--mute:#6B7280;--line:#E8E8E6;
+    --critical:#E5383B;--critical-d:#BE2D30;--vital:#0E8A6F;--amber:#E5A100;
+    --sans:'PingFang SC','Noto Sans SC',system-ui,sans-serif;
+    --mono:ui-monospace,'SF Mono','Cascadia Code','Consolas',monospace;--r:12px;--ease:cubic-bezier(.2,0,0,1);}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    min-height:100vh;display:flex;flex-direction:column;}
+
+  /* 顶栏 */
+  .top{display:flex;align-items:center;gap:14px;padding:14px 22px;border-bottom:1px solid var(--line);}
+  .top h1{font-size:14px;font-weight:700;margin:0;white-space:nowrap;}
+  .surv{flex:1;height:8px;background:var(--line);border-radius:5px;overflow:hidden;min-width:80px;}
+  .surv>i{display:block;height:100%;width:100%;background:var(--vital);transition:width .4s var(--ease),background .4s;}
+  .surv-pct,.timer{font-family:var(--mono);font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums;}
+  .pause{font:inherit;font-size:12px;padding:5px 12px;border:1px solid var(--line);border-radius:7px;background:#fff;cursor:pointer;min-height:44px;}
+
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;min-height:110px;}
+  .victim{width:230px;height:104px;}
+  .viz{padding:0 22px 18px;}
+  .viz__card{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;
+    box-shadow:0 8px 24px rgba(22,24,29,.05);}
+  .viz__head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px 12px;border-bottom:1px solid var(--line);}
+  .viz__title{display:flex;flex-direction:column;gap:4px;}
+  .viz__title strong{font-size:14px;}
+  .viz__title span,.viz__meta,.viz__hint{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--mute);}
+  .viz__meta{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;}
+  .viz__scene{position:relative;height:360px;background:linear-gradient(180deg,#f7f8fb 0%,#eef2f6 100%);}
+  .viz__canvas{width:100%;height:100%;}
+  .viz__hud{position:absolute;left:16px;bottom:16px;display:flex;gap:8px;flex-wrap:wrap;pointer-events:none;}
+  .viz__chip{background:rgba(255,255,255,.88);border:1px solid rgba(22,24,29,.08);border-radius:999px;padding:7px 10px;
+    font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink);backdrop-filter:blur(12px);}
+  .viz__btn{pointer-events:auto;cursor:pointer;font:inherit;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink);transition:background .15s var(--ease),border-color .15s var(--ease),transform .1s var(--ease);}
+  .viz__btn:hover{background:rgba(255,255,255,1);border-color:rgba(22,24,29,.24);}
+  .viz__btn:active{transform:scale(.96);}
+  .viz__btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+  .viz__fallback{display:flex;align-items:center;justify-content:center;height:100%;padding:20px;color:var(--mute);font-size:13px;text-align:center;}
+  .viz__stats{position:absolute;right:12px;top:12px;z-index:2;opacity:.9;}
+  .viz__stats canvas{border-radius:8px;overflow:hidden;}
+  .viz__foot{padding:10px 16px 14px;border-top:1px solid var(--line);}
+
+  /* 分身通道 */
+  .crew{display:flex;gap:12px;padding:14px 22px;justify-content:center;flex-wrap:wrap;}
+  .ch{width:128px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+    padding:12px 12px 14px;cursor:pointer;transition:border-color .2s,box-shadow .2s,transform .1s;
+    font:inherit;text-align:left;color:inherit;-webkit-appearance:none;appearance:none;}
+  .ch:active{transform:scale(.98);}
+  .ch--active{border-color:var(--ink);box-shadow:0 0 0 4px rgba(22,24,29,.05);}
+  .ch__top{display:flex;align-items:center;gap:7px;}
+  .ch__glyph{width:20px;height:20px;flex:0 0 20px;color:var(--ink);}
+  .ch__name{font-size:13px;font-weight:600;}
+  .ch__role{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--mute);margin-top:5px;}
+  .ch__task{display:flex;align-items:center;gap:6px;font-size:12px;margin:9px 0 11px;height:14px;}
+  .ch__task .pip{width:7px;height:7px;border-radius:50%;background:var(--mute);}
+  .ch__task .pip--beat{background:var(--vital);animation:beat 1s var(--ease) infinite;}
+  @keyframes beat{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.7);opacity:.5;}}
+  .ch__stam{display:flex;align-items:center;gap:8px;}
+  .ch__bar{flex:1;height:5px;background:var(--line);border-radius:3px;overflow:hidden;}
+  .ch__bar>i{display:block;height:100%;background:var(--vital);transition:width .4s,background .4s;}
+  .ch--mid .ch__bar>i{background:var(--amber);} .ch--low .ch__bar>i{background:var(--critical);}
+  .ch__val{font-family:var(--mono);font-size:12px;min-width:20px;text-align:right;}
+  .ch--low .ch__val{color:var(--critical-d);}
+
+  .actions{padding:14px 22px 22px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+  .btn-a{font:inherit;font-size:14px;padding:11px 18px;border:1px solid var(--line);border-radius:8px;
+    background:#fff;cursor:pointer;transition:border-color .15s,transform .1s;min-height:44px;}
+  .btn-a:hover{border-color:var(--ink);} .btn-a:active{transform:scale(.97);}
+  .btn-a:disabled{opacity:.35;cursor:not-allowed;}
+  .btn-a.is-red,.btn-a.is-on{background:var(--critical);border-color:var(--critical);color:#fff;font-weight:500;}
+  .btn-a.is-red:hover{background:var(--critical-d);border-color:var(--critical-d);}
+
+  .ch:focus-visible,.btn-a:focus-visible,.pause:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+
+  /* 导师卡 */
+  .mentor{position:fixed;right:22px;bottom:22px;width:320px;max-width:calc(100vw - 44px);
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;
+    box-shadow:0 4px 16px rgba(0,0,0,.06);opacity:0;transform:translateY(16px);pointer-events:none;
+    transition:opacity .22s var(--ease),transform .22s var(--ease);cursor:pointer;z-index:40;}
+  .mentor.is-show{opacity:1;transform:translateY(0);pointer-events:auto;}
+  .mentor__accent{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--mute);}
+  .mentor[data-type="correct"] .mentor__accent{background:var(--vital);}
+  .mentor[data-type="warn"] .mentor__accent{background:var(--critical);}
+  .mentor__inner{padding:14px 14px 14px 22px;}
+  .mentor__head{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+  .mentor__name{font-size:13px;font-weight:500;} .mentor__dot{width:6px;height:6px;border-radius:50%;background:var(--mute);margin-left:auto;}
+  .mentor[data-type="correct"] .mentor__dot{background:var(--vital);}
+  .mentor[data-type="warn"] .mentor__dot{background:var(--critical);}
+  .mentor__text{font-size:15px;line-height:1.6;min-height:1.6em;}
+  .mentor__caret{display:inline-block;width:2px;height:1em;vertical-align:-2px;background:var(--ink);margin-left:2px;animation:blink .9s steps(1) infinite;}
+  @keyframes blink{50%{opacity:0;}}
+  .mentor__progress{height:2px;background:var(--line);transform-origin:left;}
+  .mentor.is-counting .mentor__progress{animation:shrink linear forwards;animation-duration:var(--fdur,4200ms);}
+  .mentor:hover .mentor__progress{animation-play-state:paused;}
+  @keyframes shrink{to{transform:scaleX(0);}}
+
+  /* 复盘 */
+  .rv{position:fixed;inset:0;background:rgba(250,250,249,.92);display:none;align-items:center;justify-content:center;z-index:60;}
+  .rv.on{display:flex;}
+  .review{width:360px;max-width:92vw;background:var(--surface);border:1px solid var(--line);
+    border-radius:16px;overflow:hidden;box-shadow:0 10px 40px rgba(22,24,29,.08);}
+  .ecg{position:relative;height:90px;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:18px 18px;background-position:center;}
+  .ecg svg{position:absolute;inset:0;width:100%;height:100%;}
+  .ecg path{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:trace 1.7s var(--ease) .15s forwards;}
+  @keyframes trace{to{stroke-dashoffset:0;}}
+  .review__body{padding:22px;}
+  .review__head{display:flex;align-items:baseline;gap:12px;}
+  .review__grade{font-family:var(--mono);font-size:52px;font-weight:600;line-height:1;color:var(--vital);}
+  .review--fail .review__grade{color:var(--critical);}
+  .review__verdict{font-size:15px;font-weight:700;} .review__sub{font-family:var(--mono);font-size:12px;color:var(--mute);}
+  .rows{margin:18px 0 16px;}
+  .row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:13px;}
+  .row:last-child{border-bottom:1px solid var(--line);}
+  .row__bar{flex:0 0 84px;height:4px;background:var(--line);border-radius:2px;overflow:hidden;}
+  .row__bar>i{display:block;height:100%;background:var(--vital);}
+  .review--fail .row__bar>i{background:var(--critical);}
+  .row__score{font-family:var(--mono);font-size:12px;color:var(--mute);min-width:44px;text-align:right;}
+  .review__tip{font-size:13px;line-height:1.55;color:var(--mute);border-left:2px solid var(--vital);padding-left:12px;margin:0 0 20px;}
+  .review--fail .review__tip{border-color:var(--critical);}
+  .review .btn{width:100%;padding:13px;border:none;border-radius:9px;background:var(--ink);color:#fff;font:inherit;font-size:14px;font-weight:500;cursor:pointer;min-height:44px;}
+  .review .btn:hover{opacity:.88;}
+
+  /* 入场 */
+  .intro{position:fixed;inset:0;background:var(--paper);z-index:100;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:8px;transition:opacity .4s var(--ease),transform .4s var(--ease);}
+  .intro.is-leaving{opacity:0;transform:scale(1.02);pointer-events:none;}
+  .intro__mon{position:relative;width:min(420px,82vw);height:130px;opacity:0;animation:grid .4s var(--ease) forwards;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:20px 20px;background-position:center;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);}
+  @keyframes grid{to{opacity:1;}}
+  .intro__mon svg{position:absolute;inset:0;width:100%;height:100%;}
+  .intro__mon path{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;}
+  .intro__flat{stroke:var(--mute);animation:trace2 .55s linear .1s forwards;}
+  .intro__beat{stroke:var(--vital);animation:trace2 .35s var(--ease) .58s forwards;}
+  @keyframes trace2{to{stroke-dashoffset:0;}}
+  .intro__glow{position:absolute;left:46%;top:50%;width:60px;height:60px;border-radius:50%;
+    background:radial-gradient(var(--vital),transparent 70%);transform:translate(-50%,-50%) scale(.3);opacity:0;animation:glow .55s var(--ease) .6s;}
+  @keyframes glow{0%{opacity:0;transform:translate(-50%,-50%) scale(.3);}40%{opacity:.45;}100%{opacity:0;transform:translate(-50%,-50%) scale(1.9);}}
+  .intro__title{font-size:26px;font-weight:700;letter-spacing:.04em;opacity:0;transform:translateY(8px);animation:rise .5s var(--ease) .62s forwards;}
+  .intro__cap{font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:var(--mute);text-transform:uppercase;opacity:0;animation:fade .5s var(--ease) .95s forwards;}
+  .intro__btn{margin-top:18px;padding:13px 30px;border:none;border-radius:9px;background:var(--ink);color:#fff;font:inherit;font-size:15px;font-weight:500;cursor:pointer;opacity:0;transform:translateY(8px);animation:rise .45s var(--ease) 1.25s forwards;min-height:44px;}
+  .intro__btn:hover{opacity:.88;} .intro__btn:focus-visible,.review .btn:focus-visible{outline:2px solid var(--vital);outline-offset:3px;}
+  @keyframes rise{to{opacity:1;transform:none;}} @keyframes fade{to{opacity:1;}}
+
+  /* 移动端 */
+  @media (max-width:560px){
+    .top{flex-wrap:wrap;gap:8px 12px;padding:12px 16px;}
+    .top h1{flex:1 0 100%;}
+    .viz{padding:0 12px 14px;}
+    .viz__head{align-items:flex-start;flex-direction:column;}
+    .viz__scene{height:280px;}
+    .crew{gap:8px;padding:12px;}
+    .ch{width:calc(50% - 4px);}
+    .actions{padding:12px 16px 16px;}
+    .btn-a{flex:1 1 calc(50% - 4px);}
+    .mentor{left:12px;right:12px;width:auto;bottom:12px;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .mentor__caret,.ch__task .pip--beat,.intro__glow{animation:none;}
+    .ecg path,.intro__flat,.intro__beat{animation:none;stroke-dashoffset:0;}
+    .intro__mon,.intro__title,.intro__cap,.intro__btn{animation:none;opacity:1;transform:none;}}
+</style></head>
+<body>
+  <header class="top">
+    <h1>急救演练</h1>
+    <div class="surv" id="survWrap" role="progressbar" aria-label="伤者存活率" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i id="survBar"></i></div>
+    <span class="surv-pct" id="survPct">100%</span>
+    <span class="timer" id="timer">00:00</span>
+    <button class="pause" id="soundBtn" aria-pressed="true" aria-label="按压节拍音 开关">声音 ♪</button>
+    <button class="pause" id="pauseBtn">暂停</button>
+  </header>
+  <main class="stage">
+    <svg class="victim" aria-hidden="true" viewBox="0 0 230 104" fill="none"><ellipse cx="115" cy="90" rx="106" ry="9" fill="#E8E8E6"/>
+      <circle cx="48" cy="60" r="17" stroke="#16181D" stroke-width="2"/><rect x="65" y="49" width="135" height="26" rx="13" stroke="#16181D" stroke-width="2"/></svg>
+  </main>
+  <section class="viz" aria-labelledby="vizTitle">
+    <div class="viz__card">
+      <div class="viz__head">
+        <div class="viz__title">
+          <strong id="vizTitle">3D 医疗可视化场景</strong>
+          <span>THREE.JS / ORBIT CONTROLS / ADAPTIVE RENDERING</span>
+        </div>
+        <div class="viz__meta">
+          <span id="sceneStatus">状态 待机</span>
+          <span id="sceneSurvival">生存率 100%</span>
+          <span id="sceneFps">FPS --</span>
+        </div>
+      </div>
+      <div class="viz__scene">
+        <div class="viz__stats" id="sceneStats" aria-hidden="true"></div>
+        <div class="viz__canvas" id="scene3d" role="img" aria-label="病人三维可视化场景，支持拖拽旋转和滚轮缩放"></div>
+        <div class="viz__hud">
+          <span class="viz__chip" id="sceneCrewChip">团队 1 人</span>
+          <span class="viz__chip" id="sceneTaskChip">当前任务 待命</span>
+          <span class="viz__chip" id="sceneAedChip">AED 未就绪</span>
+          <button type="button" class="viz__chip viz__btn" id="sceneRecenterBtn" aria-label="重置视角，平滑回到场景中央">⟳ 重置视角</button>
+          <a class="viz__chip viz__btn" href="young-person-viewer.html" aria-label="返回主页" style="text-decoration:none;">← 返回主页</a>
+        </div>
+      </div>
+      <div class="viz__foot">
+        <div class="viz__hint">拖拽旋转视角，滚轮缩放；原有急救逻辑、计分与导师提示保持不变。</div>
+      </div>
+    </div>
+  </section>
+  <nav class="crew" id="crew"></nav>
+  <footer class="actions">
+    <button class="btn-a is-red" data-act="compress">按 压</button>
+    <button class="btn-a" data-act="call">呼救</button>
+    <button class="btn-a" data-act="aed">取 AED</button>
+    <button class="btn-a" data-act="shock" disabled>电击</button>
+  </footer>
+
+  <aside class="mentor" id="mentorCard" data-type="hint" aria-live="polite">
+    <span class="mentor__accent"></span>
+    <div class="mentor__inner"><div class="mentor__head">
+      <svg width="26" height="26" aria-hidden="true" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" stroke="#16181D" stroke-width="1.5"/><path d="M14 8.5v11M8.5 14h11" stroke="#E5383B" stroke-width="2" stroke-linecap="round"/></svg>
+      <span class="mentor__name">急救导师</span><span class="mentor__dot"></span></div>
+      <div class="mentor__text" id="mentorText"></div></div>
+    <div class="mentor__progress"></div>
+  </aside>
+
+  <div class="rv" id="review" role="dialog" aria-modal="true" aria-label="抢救复盘"><div class="review" id="reviewCard">
+    <div class="ecg"><svg id="ecgSvg" viewBox="0 0 360 96" preserveAspectRatio="none"></svg></div>
+    <div class="review__body" id="reviewBody"></div>
+  </div></div>
+
+  <div class="intro" id="intro">
+    <div class="intro__mon"><div class="intro__glow"></div>
+      <svg viewBox="0 0 420 130" preserveAspectRatio="none">
+        <path class="intro__flat" d="M0,65 H420" pathLength="1"/>
+        <path class="intro__beat" d="M168,65 l10,0 5,-38 6,62 6,-32 7,8 l10,0" pathLength="1"/></svg></div>
+    <h1 class="intro__title">急救演练</h1>
+    <p class="intro__cap">心律建立 — 准备抢救</p>
+    <button class="intro__btn" id="start">开始抢救</button>
+  </div>
+
+<script>
+/* —— 音频层：节拍 + 提示音 + 胜负 sting —— */
+const Sound=(()=>{
+  let ctx=null,on=true,metroOn=false,nextT=0,look=null,_skip=false;
+  const INT=60/110;
+  function unlock(){ if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();
+    if(ctx.state==='suspended')ctx.resume(); }
+  function at(freq,t0,dur,gain,type){ if(!ctx||!on)return;const t=ctx.currentTime+t0;
+    const o=ctx.createOscillator(),g=ctx.createGain();o.type=type||'sine';o.frequency.value=freq;
+    o.connect(g);g.connect(ctx.destination);
+    g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(gain,t+.012);
+    g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.start(t);o.stop(t+dur+.02); }
+  function click(time){const o=ctx.createOscillator(),g=ctx.createGain();
+    o.type='square';o.frequency.value=1000;o.connect(g);g.connect(ctx.destination);
+    g.gain.setValueAtTime(.0001,time);g.gain.exponentialRampToValueAtTime(.22,time+.001);
+    g.gain.exponentialRampToValueAtTime(.0001,time+.04);o.start(time);o.stop(time+.05);}
+  function sched(){ while(nextT<ctx.currentTime+0.1){ click(nextT); nextT+=INT; } }
+  function startMetro(){ if(!ctx||!on||metroOn)return;metroOn=true;nextT=ctx.currentTime+.05;look=setInterval(sched,25); }
+  function stopMetro(){ metroOn=false; if(look){clearInterval(look);look=null;} }
+  function setOn(v){ on=v; if(!on)stopMetro(); }
+  function msgCue(type){ if(_skip){_skip=false;return;}
+    if(type==='warn')at(220,0,.13,.16,'triangle');else if(type==='correct')at(660,0,.09,.14,'sine'); }
+  function skipNextCue(){ _skip=true; }
+  function cueWin(){ at(523.25,0,.16,.16,'triangle');at(659.25,.13,.16,.16,'triangle');
+    at(783.99,.26,.16,.16,'triangle');at(1046.5,.39,.5,.18,'sine'); }
+  function cueLose(){ at(392,0,.18,.14,'sine');at(311.13,.16,.2,.14,'sine');at(220,.34,.9,.12,'sine'); }
+  return{unlock,startMetro,stopMetro,setOn,isOn:()=>on,msgCue,skipNextCue,cueWin,cueLose};
+})();
+
+/* —— 表现层：导师卡 —— */
+const Mentor=(()=>{const c=document.getElementById('mentorCard'),t=document.getElementById('mentorText');
+  const q=[];let busy=false;
+  function say({type='hint',text='',duration=4200}={}){if(q.some(m=>m.text===text))return;q.push({type,text,duration});if(!busy)next();}
+  function next(){if(!q.length){busy=false;return;}busy=true;const{type,text,duration}=q.shift();
+    c.dataset.type=type;c.style.setProperty('--fdur',duration+'ms');c.classList.remove('is-counting');c.classList.add('is-show');
+    Sound.msgCue(type);
+    tw(text,()=>{void c.offsetWidth;c.classList.add('is-counting');});}
+  function tw(text,done){let i=0;t.innerHTML='<span class="mentor__caret"></span>';const k=t.querySelector('.mentor__caret');
+    const tm=setInterval(()=>{if(i>=text.length){clearInterval(tm);k.remove();done();return;}k.insertAdjacentText('beforebegin',text[i++]);},18);}
+  function dismiss(){c.classList.remove('is-show','is-counting');setTimeout(next,260);}
+  c.querySelector('.mentor__progress').addEventListener('animationend',dismiss);c.addEventListener('click',dismiss);
+  return{say};})();
+
+/* —— 决策层：统一引擎 + 协作规则 —— */
+function makeTutor(rules){const cd={},fired=new Set(),lineIx={};let clock=0;
+  function emit(type,p={}){clock=p._now??clock;
+    const hit=rules.filter(r=>r.on===type).filter(r=>!(r.once&&fired.has(r.id)))
+      .filter(r=>(cd[r.id]??0)<=clock).filter(r=>!r.when||r.when(p)).sort((a,b)=>b.priority-a.priority)[0];
+    if(!hit)return;cd[hit.id]=clock+(hit.cooldown??0);if(hit.once)fired.add(hit.id);
+    let ty=hit.type,text;
+    if(hit.resolve){const r=hit.resolve(p);text=r.text;ty=r.type??hit.type;}
+    else{const i=(lineIx[hit.id]??-1)+1;lineIx[hit.id]=i;text=hit.lines[i%hit.lines.length];}
+    Mentor.say({type:ty,text});}
+  return{emit};}
+const COOP_RULES=[
+  {id:'intro',on:'intro',priority:10,once:true,type:'hint',lines:['有人倒下了！先「呼救」召集帮手，再开始按压——你一个人忙不过来。']},
+  {id:'crew_join',on:'crew_joined',priority:50,resolve:p=>({type:'correct',text:`${p.name}赶来帮忙（${p.trait}）——把活儿分给合适的人！`})},
+  {id:'crew_full',on:'help_called',priority:40,when:p=>p.full,type:'hint',lines:['人手够了，专注抢救！']},
+  {id:'aed_ready',on:'aed_fetched',priority:60,resolve:p=>({type:'correct',text:`${p.name}取回了 AED！切过去尽快电击。`})},
+  {id:'nurse_errand',on:'assign_errand',priority:70,cooldown:5,when:p=>p.key==='nurse',type:'warn',lines:['护士按压最专业，别让她跑腿——派跑得快的人去取 AED。']},
+  {id:'interrupt',on:'tick',priority:80,cooldown:8,when:p=>p.noCpr>=6,type:'warn',lines:['按压不能停！中断超过 10 秒，心脑供血就断了。']},
+  {id:'fatigue',on:'tick',priority:75,cooldown:6,when:p=>p.activeTired,resolve:p=>({type:'warn',text:p.activeKey==='athlete'?'年轻人力气大但累得快，赶紧换人接力！':'按压在变浅了，切个体力好的人接力！'})},
+  {id:'win',on:'shock',priority:90,once:true,type:'correct',lines:['电击成功，恢复自主心跳！人尽其才，团队救回一条命。']},
+  {id:'defeat',on:'defeat',priority:90,once:true,type:'warn',lines:['失去生命体征…复盘：呼救够早吗？按压有没有常中断？']},
+];
+const Tutor=makeTutor(COOP_RULES);
+
+/* —— 玩法层：状态机 —— */
+const CFG={survStart:100,decay:1,interruptPenalty:3,cprGain:3,cprTiredGain:.7,fatRest:5,tiredAt:70,aedTravel:8,callTime:4,maxCrew:4,cprGraceSec:9};
+const G=k=>`<svg class="ch__glyph" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">${k}</svg>`;
+const ARCH={
+  player:{label:'你',trait:'均衡',fatUp:3,gainMul:1.0,travel:1.0,glyph:G('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-4 3-6 7-6s7 2 7 6"/>')},
+  nurse:{label:'护士',trait:'质量高·耐力强',fatUp:1.5,gainMul:1.3,travel:1.0,glyph:G('<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8" stroke="#E5383B"/>')},
+  athlete:{label:'青年',trait:'力量大·易疲劳',fatUp:5,gainMul:1.25,travel:.7,glyph:G('<path d="M13 2 5 13h6l-1 9 8-11h-6z"/>')},
+  worker:{label:'上班族',trait:'机动快',fatUp:3.5,gainMul:.85,travel:.7,glyph:G('<circle cx="11" cy="5" r="2.5"/><path d="M11 8l-3 5 4 2 1 7M11 13l5-1"/>')},
+};
+const RECRUITS=['athlete','worker','nurse'];let recruitIx=0;
+const AV=[];let activeId=0;
+const V={surv:CFG.survStart,noCpr:0,aedReady:false,over:false};
+const STATS={callTime:null,interruptions:0,noCprTotal:0,tiredCompressSeconds:0,misassign:0,shocked:false,_wasComp:false};
+const SceneBridge=window.FirstAidSceneBridge||{
+  push(snapshot){
+    this.snapshot=snapshot;
+    window.dispatchEvent(new CustomEvent('firstaid:state',{detail:snapshot}));
+  }
+};
+window.FirstAidSceneBridge=SceneBridge;
+function addAvatar(key){const A=ARCH[key];const a={id:AV.length,key,arch:A,name:A.label,task:'idle',fatigue:0,t:0};AV.push(a);return a;}
+addAvatar('player');
+
+function setActive(id){if(V.over||!AV[id])return;const prev=AV[activeId];if(prev&&prev.task==='compressing')prev.task='idle';activeId=id;render();}
+const ACT={
+  compress(a){a.task=a.task==='compressing'?'idle':'compressing';},
+  call(a){if(AV.length>=CFG.maxCrew){Tutor.emit('help_called',{full:true,_now:elapsed});return;}
+    if(STATS.callTime==null)STATS.callTime=elapsed;a.task='calling';a.t=CFG.callTime;},
+  aed(a){if(V.aedReady||AV.some(x=>x.task==='fetchingAED'))return;if(a.key==='nurse')STATS.misassign++;
+    Tutor.emit('assign_errand',{key:a.key,_now:elapsed});a.task='fetchingAED';a.t=Math.round(CFG.aedTravel*a.arch.travel);},
+  shock(a){if(!V.aedReady)return;V.over=true;STATS.shocked=true;
+    Sound.stopMetro();Sound.skipNextCue();
+    Tutor.emit('shock',{_now:elapsed});
+    Sound.cueWin();render();},
+};
+
+let elapsed=0,paused=false,timer=null;
+const fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+function tick(){if(V.over||paused)return;elapsed++;document.getElementById('timer').textContent=fmt(elapsed);
+  let compressing=false;
+  AV.forEach(a=>{const active=a.id===activeId;
+    if(a.task==='compressing'&&active){compressing=true;a.fatigue=Math.min(100,a.fatigue+a.arch.fatUp);
+      V.surv+=(a.fatigue<CFG.tiredAt?CFG.cprGain:CFG.cprTiredGain)*a.arch.gainMul;}
+    else if(a.task!=='compressing'){a.fatigue=Math.max(0,a.fatigue-CFG.fatRest);}
+    if(a.task==='fetchingAED'){if(--a.t<=0){a.task='idle';V.aedReady=true;Tutor.emit('aed_fetched',{name:a.name,_now:elapsed});}}
+    if(a.task==='calling'){if(--a.t<=0){a.task='idle';const b=addAvatar(RECRUITS[recruitIx++%RECRUITS.length]);Tutor.emit('crew_joined',{name:b.name,trait:b.arch.trait,_now:elapsed});}}
+  });
+  V.surv-=CFG.decay;
+  if(!compressing){V.noCpr++;V.surv-=CFG.interruptPenalty;STATS.noCprTotal++;}else V.noCpr=0;
+  if(STATS._wasComp&&!compressing)STATS.interruptions++;STATS._wasComp=compressing;
+  const ca=AV[activeId];
+  if(ca&&ca.task==='compressing'&&ca.fatigue>=CFG.tiredAt)STATS.tiredCompressSeconds++;
+  Tutor.emit('tick',{_now:elapsed,noCpr:V.noCpr,activeTired:!!(ca&&ca.task==='compressing'&&ca.fatigue>=CFG.tiredAt),activeKey:ca&&ca.key});
+  V.surv=Math.max(0,Math.min(100,V.surv));
+  if(V.surv<=0&&!V.over){V.over=true;Sound.stopMetro();Sound.skipNextCue();Tutor.emit('defeat',{_now:elapsed});Sound.cueLose();}
+  render();}
+
+/* —— 渲染 —— */
+const TASKLABEL={idle:'待命',compressing:'按压中',fetchingAED:'取 AED 中',calling:'呼救中'};
+const crewEl=document.getElementById('crew'),survBar=document.getElementById('survBar'),survPct=document.getElementById('survPct');
+function syncSceneState(){
+  const a=AV[activeId];
+  SceneBridge.push({
+    elapsed,
+    paused,
+    over:V.over,
+    survival:Math.round(V.surv),
+    noCpr:V.noCpr,
+    aedReady:V.aedReady,
+    crewCount:AV.length,
+    activeName:a?a.name:'',
+    activeTask:a?TASKLABEL[a.task]:'',
+    activeTaskKey:a?a.task:'',
+    activeFatigue:a?Math.round(a.fatigue):0,
+    compressing:!!(a&&a.task==='compressing')
+  });
+}
+function render(){
+  survBar.style.width=V.surv+'%';
+  survBar.style.background=V.surv>50?'var(--vital)':V.surv>25?'var(--amber)':'var(--critical)';
+  survPct.textContent=Math.round(V.surv)+'%';
+  document.getElementById('survWrap').setAttribute('aria-valuenow',Math.round(V.surv));
+  const focusedId=document.activeElement&&document.activeElement.classList.contains('ch')?document.activeElement.dataset.id:null;
+  crewEl.innerHTML=AV.map(a=>{const stam=100-Math.round(a.fatigue);
+    const lvl=stam>50?'':stam>25?'ch--mid':'ch--low';
+    const active=a.id===activeId;
+    const beat=(active&&a.task==='compressing')?'pip--beat':'';
+    return `<button class="ch ${active?'ch--active':''} ${lvl}" data-id="${a.id}" aria-pressed="${active}" aria-label="${a.name}，${a.arch.trait}，${TASKLABEL[a.task]}，体力${stam}%">
+      <div class="ch__top">${a.arch.glyph}<span class="ch__name">${a.name}</span></div>
+      <div class="ch__role">${a.arch.trait}</div>
+      <div class="ch__task"><i class="pip ${beat}"></i>${TASKLABEL[a.task]}</div>
+      <div class="ch__stam"><div class="ch__bar"><i style="width:${stam}%"></i></div><span class="ch__val">${stam}</span></div></button>`;
+  }).join('');
+  if(focusedId!=null){const el=crewEl.querySelector(`.ch[data-id="${focusedId}"]`);if(el)el.focus();}
+  const a=AV[activeId];
+  document.querySelectorAll('.actions .btn-a').forEach(b=>{
+    if(b.dataset.act==='shock')b.disabled=!V.aedReady||V.over;else b.disabled=V.over;
+    if(b.dataset.act==='compress'){const on=a&&a.task==='compressing';b.classList.toggle('is-on',on);b.setAttribute('aria-pressed',String(!!on));}});
+  const compressingNow=AV[activeId]&&AV[activeId].task==='compressing'&&!V.over;
+  if(compressingNow)Sound.startMetro();else Sound.stopMetro();
+  syncSceneState();
+  if(V.over)showReview();
+}
+crewEl.addEventListener('click',e=>{const el=e.target.closest('.ch');if(el)setActive(+el.dataset.id);});
+document.querySelectorAll('.actions .btn-a').forEach(b=>b.addEventListener('click',()=>{if(V.over)return;ACT[b.dataset.act](AV[activeId]);render();}));
+window.addEventListener('keydown',e=>{if(document.getElementById('intro').style.display!=='none'||V.over)return;const n=+e.key;if(n>=1&&n<=AV.length)setActive(n-1);});
+document.getElementById('pauseBtn').addEventListener('click',e=>{if(!timer)return;paused=!paused;e.target.textContent=paused?'继续':'暂停';if(paused)Sound.stopMetro();});
+const soundBtn=document.getElementById('soundBtn');
+soundBtn.addEventListener('click',()=>{Sound.unlock();const on=!Sound.isOn();Sound.setOn(on);soundBtn.setAttribute('aria-pressed',String(on));soundBtn.textContent=on?'声音 ♪':'声音 ✕';});
+
+/* —— 复盘 —— */
+const WIN='M0,48 H40 l6,-2 4,4 6,-30 6,52 6,-24 6,2 H120 l6,-1 4,2 6,-34 6,56 6,-26 6,2 H240 l6,-1 4,2 6,-36 6,58 6,-26 6,3 H360';
+const FAIL='M0,48 l30,0 4,-26 5,48 5,-22 6,0 H120 l20,0 4,-14 5,26 5,-12 6,0 H230 l10,0 3,-6 4,12 4,-6 H360';
+function grade(){const s=STATS;
+  const call=s.callTime==null?0:Math.max(0,Math.round(25-Math.max(0,s.callTime-8)*3));
+  const cont=Math.max(0,Math.round(30-s.interruptions*4-Math.max(0,s.noCprTotal-CFG.cprGraceSec)*2));
+  const rot=Math.max(0,Math.round(25-s.tiredCompressSeconds*2));
+  const role=Math.max(0,Math.round(20-s.misassign*10));
+  let total=call+cont+rot+role;if(!s.shocked)total=Math.min(total,55);
+  const g=total>=90?'S':total>=75?'A':total>=60?'B':'C';
+  return{total,g,rows:[['呼救时机',call,25,'下次更早呼救，越早到的帮手越多。'],
+    ['按压连续性',cont,30,'减少切换，让按压尽量不中断。'],
+    ['轮换时机',rot,25,'体力变红就立刻换人，别硬扛。'],
+    ['人岗匹配',role,20,'护士留着按压，跑腿交给机动快的人。']]};}
+function showReview(){const ov=document.getElementById('review');if(ov.classList.contains('on'))return;
+  const r=grade(),fail=!STATS.shocked;
+  document.getElementById('ecgSvg').innerHTML=`<path d="${fail?FAIL:WIN}" stroke="${fail?'#E5383B':'#0E8A6F'}" pathLength="1"/>`;
+  document.getElementById('reviewCard').classList.toggle('review--fail',fail);
+  const worst=r.rows.reduce((a,b)=>b[1]/b[2]<a[1]/a[2]?b:a);
+  document.getElementById('reviewBody').innerHTML=
+   `<div class="review__head"><span class="review__grade">${r.g}</span><div>
+      <div class="review__verdict">${fail?'未能挽回':'抢救成功'}</div>
+      <div class="review__sub">综合评分 ${r.total} · 用时 ${fmt(elapsed)}</div></div></div>
+    <div class="rows">${r.rows.map(([l,v,m])=>`<div class="row">${l}<div class="row__bar"><i style="width:${Math.round(v/m*100)}%"></i></div><span class="row__score">${v}/${m}</span></div>`).join('')}</div>
+    <p class="review__tip">导师寄语：${worst[3]}</p>
+    <button class="btn" onclick="location.reload()">再来一次</button>`;
+  ov.classList.add('on');
+  document.querySelector('#reviewBody .btn').focus();}
+
+/* —— 入场 → 开局 —— */
+document.getElementById('start').onclick=()=>{const intro=document.getElementById('intro');
+  Sound.unlock();
+  intro.classList.add('is-leaving');setTimeout(()=>intro.style.display='none',420);
+  Tutor.emit('intro',{_now:0});if(!timer)timer=setInterval(tick,1000);};
+render();
+document.getElementById('start').focus();
+</script>
+<script type="module">
+(async()=>{
+  const mount=document.getElementById('scene3d');
+  const statusEl=document.getElementById('sceneStatus');
+  const survEl=document.getElementById('sceneSurvival');
+  const fpsEl=document.getElementById('sceneFps');
+  const crewChip=document.getElementById('sceneCrewChip');
+  const taskChip=document.getElementById('sceneTaskChip');
+  const aedChip=document.getElementById('sceneAedChip');
+  const statsHost=document.getElementById('sceneStats');
+  if(!mount)return;
+  try{
+    const THREE=await import('three');
+    const {OrbitControls}=await import('three/addons/controls/OrbitControls.js');
+    const Stats=(await import('three/addons/libs/stats.module.js')).default;
+
+    const scene=new THREE.Scene();
+    scene.background=new THREE.Color('#eef2f6');
+    scene.fog=new THREE.Fog('#eef2f6',9,18);
+
+    const camera=new THREE.PerspectiveCamera(42,1,0.1,100);
+    camera.position.set(4.8,3.2,5.8);
+
+    const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
+    renderer.shadowMap.enabled=true;
+    renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace=THREE.SRGBColorSpace;
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure=1.1;
+    mount.appendChild(renderer.domElement);
+
+    const controls=new OrbitControls(camera,renderer.domElement);
+    controls.enableDamping=true;
+    controls.dampingFactor=0.08;
+    controls.enablePan=false;
+    controls.minDistance=3.8;
+    controls.maxDistance=8.5;
+    controls.minPolarAngle=Math.PI/4;
+    controls.maxPolarAngle=Math.PI/2.03;
+    controls.target.set(0,1.15,0);
+
+    /* ============================================================
+     * 视角平滑系统：精准聚焦场景中央（病人 + 医生整体包围盒）
+     *   - desiredCamPos / desiredTarget：每帧目标，由 recenterView 设置
+     *   - tween 标志：true 时主循环以 lerp 插值平滑过渡，到位后自动停
+     * ============================================================ */
+    const desiredCamPos=new THREE.Vector3().copy(camera.position);
+    const desiredTarget=new THREE.Vector3().copy(controls.target);
+    let viewTweening=false;
+    function recenterView(opts){
+      // 计算病人 + 医生的整体包围盒中心
+      const box=new THREE.Box3();
+      if(typeof patient!=='undefined') box.expandByObject(patient);
+      if(typeof doctor !=='undefined') box.expandByObject(doctor);
+      // 兜底：若两者都尚未创建，则保留原 target
+      if(box.isEmpty()){
+        desiredTarget.set(0,1.15,0.4);
+      }else{
+        box.getCenter(desiredTarget);
+      }
+      // 黄金视角：右前方 + 略俯视，距离自适应包围盒尺寸
+      const size=box.isEmpty()?new THREE.Vector3(3.6,2,2.4):box.getSize(new THREE.Vector3());
+      const radius=Math.max(size.x,size.z)*0.5;
+      const dist=THREE.MathUtils.clamp(radius*2.6+2.6,4.2,7.5);
+      desiredCamPos.set(
+        desiredTarget.x+dist*0.62,
+        desiredTarget.y+dist*0.55,
+        desiredTarget.z+dist*0.78
+      );
+      viewTweening=true;
+      if(opts&&opts.instant){
+        camera.position.copy(desiredCamPos);
+        controls.target.copy(desiredTarget);
+        viewTweening=false;
+      }
+    }
+    // 用户开始交互（拖动/缩放）时立即取消视角自动过渡，把控制权交还给用户
+    controls.addEventListener('start',()=>{ viewTweening=false; });
+    // HUD "重置视角" 按钮：平滑回中
+    const recenterBtn=document.getElementById('sceneRecenterBtn');
+    if(recenterBtn){ recenterBtn.addEventListener('click',()=>recenterView()); }
+
+    const stats=new Stats();
+    stats.showPanel(0);
+    stats.dom.style.position='static';
+    stats.dom.style.width='80px';
+    stats.dom.style.height='48px';
+    stats.dom.style.transform='scale(.9)';
+    statsHost.appendChild(stats.dom);
+
+    const hemi=new THREE.HemisphereLight('#f7fbff','#c9d2db',1.45);
+    scene.add(hemi);
+
+    const keyLight=new THREE.DirectionalLight('#ffffff',2.2);
+    keyLight.position.set(4.5,7,3.5);
+    keyLight.castShadow=true;
+    keyLight.shadow.mapSize.set(1024,1024);
+    keyLight.shadow.camera.left=-8;
+    keyLight.shadow.camera.right=8;
+    keyLight.shadow.camera.top=8;
+    keyLight.shadow.camera.bottom=-8;
+    scene.add(keyLight);
+
+    const fillLight=new THREE.DirectionalLight('#cde9ff',0.8);
+    fillLight.position.set(-4,3,-2);
+    scene.add(fillLight);
+
+    const floor=new THREE.Mesh(
+      new THREE.PlaneGeometry(18,18),
+      new THREE.MeshStandardMaterial({color:'#dfe6ec',roughness:.96,metalness:.02})
+    );
+    floor.rotation.x=-Math.PI/2;
+    floor.receiveShadow=true;
+    scene.add(floor);
+
+    const roomBack=new THREE.Mesh(
+      new THREE.PlaneGeometry(18,8),
+      new THREE.MeshStandardMaterial({color:'#f4f7fb',roughness:1})
+    );
+    roomBack.position.set(0,4,-5);
+    scene.add(roomBack);
+
+    const roomSide=new THREE.Mesh(
+      new THREE.PlaneGeometry(12,8),
+      new THREE.MeshStandardMaterial({color:'#edf2f7',roughness:1,side:THREE.DoubleSide})
+    );
+    roomSide.position.set(-6,4,0);
+    roomSide.rotation.y=Math.PI/2;
+    scene.add(roomSide);
+
+    const tableGroup=new THREE.Group();
+    const tableTop=new THREE.Mesh(
+      new THREE.BoxGeometry(3.6,.18,1.3),
+      new THREE.MeshStandardMaterial({color:'#fefefe',roughness:.5,metalness:.08})
+    );
+    tableTop.position.y=.95;
+    tableTop.castShadow=true;
+    tableTop.receiveShadow=true;
+    tableGroup.add(tableTop);
+    [[1.45,.47,.48],[-1.45,.47,.48],[1.45,.47,-.48],[-1.45,.47,-.48]].forEach(([x,y,z])=>{
+      const leg=new THREE.Mesh(
+        new THREE.CylinderGeometry(.045,.05,.94,14),
+        new THREE.MeshStandardMaterial({color:'#a7b3be',roughness:.45,metalness:.5})
+      );
+      leg.position.set(x,y,z);
+      leg.castShadow=true;
+      tableGroup.add(leg);
+    });
+    scene.add(tableGroup);
+
+    const monitorGroup=new THREE.Group();
+    const monitorStand=new THREE.Mesh(
+      new THREE.CylinderGeometry(.05,.06,1.1,14),
+      new THREE.MeshStandardMaterial({color:'#9eaab4',roughness:.45,metalness:.5})
+    );
+    monitorStand.position.set(2.2,.95,-.1);
+    monitorStand.castShadow=true;
+    monitorGroup.add(monitorStand);
+    const monitorBody=new THREE.Mesh(
+      new THREE.BoxGeometry(.95,.62,.1),
+      new THREE.MeshStandardMaterial({color:'#27323d',roughness:.35,metalness:.28})
+    );
+    monitorBody.position.set(2.2,1.65,-.1);
+    monitorBody.castShadow=true;
+    monitorGroup.add(monitorBody);
+    const monitorScreenMat=new THREE.MeshStandardMaterial({color:'#27d17f',emissive:'#1cc16f',emissiveIntensity:1.2});
+    const monitorScreen=new THREE.Mesh(new THREE.PlaneGeometry(.72,.42),monitorScreenMat);
+    monitorScreen.position.set(2.2,1.67,-.045);
+    monitorGroup.add(monitorScreen);
+    scene.add(monitorGroup);
+
+    function capsule(radius,length,material){
+      const group=new THREE.Group();
+      const body=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,length,24),material);
+      const top=new THREE.Mesh(new THREE.SphereGeometry(radius,24,16),material);
+      const bottom=new THREE.Mesh(new THREE.SphereGeometry(radius,24,16),material);
+      top.position.y=length/2;
+      bottom.position.y=-length/2;
+      body.castShadow=top.castShadow=bottom.castShadow=true;
+      group.add(body,top,bottom);
+      return group;
+    }
+
+    const patient=new THREE.Group();
+    const gownMat=new THREE.MeshStandardMaterial({color:'#9fc8d8',roughness:.78});
+    const skinMat=new THREE.MeshStandardMaterial({color:'#f2c7ab',roughness:.9});
+    const limbMat=new THREE.MeshStandardMaterial({color:'#d6e1e8',roughness:.82});
+
+    const torso=new THREE.Mesh(new THREE.BoxGeometry(1.4,.42,.72),gownMat);
+    torso.position.set(0,1.28,0);
+    torso.castShadow=true;
+    patient.add(torso);
+
+    const chestPlate=new THREE.Mesh(new THREE.BoxGeometry(.56,.08,.36),new THREE.MeshStandardMaterial({color:'#cfe8ef',roughness:.65}));
+    chestPlate.position.set(0,1.53,0);
+    chestPlate.castShadow=true;
+    patient.add(chestPlate);
+
+    const neck=new THREE.Mesh(new THREE.CylinderGeometry(.1,.11,.15,20),skinMat);
+    neck.position.set(.75,1.28,0);
+    neck.rotation.z=Math.PI/2;
+    neck.castShadow=true;
+    patient.add(neck);
+
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.25,28,20),skinMat);
+    head.scale.set(1,.95,.92);
+    head.position.set(1.08,1.28,0);
+    head.castShadow=true;
+    patient.add(head);
+
+    const pillow=new THREE.Mesh(new THREE.BoxGeometry(.46,.09,.52),new THREE.MeshStandardMaterial({color:'#f7fbff',roughness:.95}));
+    pillow.position.set(1.1,1.04,0);
+    pillow.castShadow=true;
+    pillow.receiveShadow=true;
+    patient.add(pillow);
+
+    const leftArm=capsule(.09,.92,limbMat);
+    leftArm.position.set(.2,1.28,.5);
+    leftArm.rotation.z=Math.PI/2;
+    patient.add(leftArm);
+    const rightArm=capsule(.09,.92,limbMat);
+    rightArm.position.set(.2,1.28,-.5);
+    rightArm.rotation.z=Math.PI/2;
+    patient.add(rightArm);
+
+    const leftLeg=capsule(.11,1.18,limbMat);
+    leftLeg.position.set(-1.05,1.12,.22);
+    leftLeg.rotation.z=Math.PI/2;
+    patient.add(leftLeg);
+    const rightLeg=capsule(.11,1.18,limbMat);
+    rightLeg.position.set(-1.05,1.12,-.22);
+    rightLeg.rotation.z=Math.PI/2;
+    patient.add(rightLeg);
+
+    const blanket=new THREE.Mesh(new THREE.BoxGeometry(1.9,.05,1),new THREE.MeshStandardMaterial({color:'#e9f0f5',roughness:.94}));
+    blanket.position.set(-.28,1.18,0);
+    blanket.castShadow=true;
+    blanket.receiveShadow=true;
+    patient.add(blanket);
+
+    const pulseHalo=new THREE.Mesh(
+      new THREE.RingGeometry(.26,.36,40),
+      new THREE.MeshBasicMaterial({color:'#0E8A6F',transparent:true,opacity:.45,side:THREE.DoubleSide})
+    );
+    pulseHalo.position.set(0,1.57,0);
+    pulseHalo.rotation.x=-Math.PI/2;
+    patient.add(pulseHalo);
+
+    patient.position.set(0,0,0);
+    scene.add(patient);
+
+    /* ============================================================
+     * 医生模型（移植自 doctor.html createFallbackDoctor，缩放并旋转
+     * 至病人侧面，与病人比例协调；不干扰现有按压交互）
+     * ============================================================ */
+    const doctor=(function buildDoctor(){
+      const group=new THREE.Group();
+      group.name='方块长条医生';
+      const matWhite=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.78});
+      const matBlue =new THREE.MeshStandardMaterial({color:0x3f9fd6,roughness:.72});
+      const matSkin =new THREE.MeshStandardMaterial({color:0xf0c29d,roughness:.76});
+      const matDark =new THREE.MeshStandardMaterial({color:0x263238,roughness:.8});
+      const matMetal=new THREE.MeshStandardMaterial({color:0x87939a,metalness:.2,roughness:.45});
+      const matBlack=new THREE.MeshStandardMaterial({color:0x111820,roughness:.8});
+      const block=(x,y,z,w,h,d,m)=>{
+        const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);
+        mesh.position.set(x,y,z);
+        mesh.castShadow=mesh.receiveShadow=true;
+        return mesh;
+      };
+      // 头部
+      const head=block(0,2.08,0,.58,.48,.48,matSkin);
+      const hairTop=block(0,2.35,-0.02,.62,.14,.52,matDark);
+      const hairFront=block(0,2.22,.23,.62,.12,.08,matDark);
+      group.add(head,hairTop,hairFront);
+      // 五官
+      group.add(block(-0.13,2.11,.245,.055,.055,.012,matBlack));
+      group.add(block(0.13,2.11,.245,.055,.055,.012,matBlack));
+      group.add(block(0,1.98,.25,.16,.035,.014,matBlack));
+      // 白大褂 + 衬衣
+      const coat=block(0,1.25,0,.72,1.16,.38,matWhite);
+      const shirt=block(0,1.22,.205,.34,.92,.035,matBlue);
+      const collarL=block(-0.16,1.68,.23,.18,.22,.035,matWhite);
+      const collarR=block(0.16,1.68,.23,.18,.22,.035,matWhite);
+      collarL.rotation.z=-0.25;
+      collarR.rotation.z= 0.25;
+      group.add(coat,shirt,collarL,collarR);
+      // 手臂 + 手
+      const armL=block(-0.55,1.22,0,.22,1.06,.26,matWhite);
+      const armR=block(0.55,1.22,0,.22,1.06,.26,matWhite);
+      const handL=block(-0.55,.6,0,.22,.18,.26,matSkin);
+      const handR=block(0.55,.6,0,.22,.18,.26,matSkin);
+      group.add(armL,armR,handL,handR);
+      // 腿 + 鞋
+      group.add(block(-0.19,.34,0,.26,.76,.3,matDark));
+      group.add(block(0.19,.34,0,.26,.76,.3,matDark));
+      group.add(block(-0.19,.03,.06,.28,.12,.42,matBlack));
+      group.add(block(0.19,.03,.06,.28,.12,.42,matBlack));
+      // 听诊器
+      group.add(block(0,1.56,.25,.46,.045,.035,matMetal));
+      group.add(block(0.16,1.33,.25,.045,.38,.035,matMetal));
+      group.add(block(0.16,1.1,.26,.14,.14,.035,matMetal));
+
+      // 微动画：右臂随时间轻摆，整体微浮（模拟呼吸/检查动作）
+      group.userData.animate=(elapsed)=>{
+        armR.rotation.z=Math.sin(elapsed*1.8)*0.18;
+        handR.rotation.z=armR.rotation.z;
+        group.position.y=doctor.userData.baseY+Math.sin(elapsed*1.4)*0.018;
+      };
+      return group;
+    })();
+    // 比例协调：医生原高约 2.47，缩到 ≈ 1.85（病人躯干 1.4 + 头部 ≈ 真人 1.7m 平卧）
+    const DOC_SCALE=0.75;
+    doctor.scale.setScalar(DOC_SCALE);
+    // 站在病人胸部右侧（+Z 方向），面朝病人（绕 Y 轴 -90°，让胸前 +Z 对准病人 -Z 一侧）
+    doctor.position.set(-0.05,0,1.15);
+    doctor.rotation.y=-Math.PI/2;
+    doctor.userData.baseY=doctor.position.y;
+    scene.add(doctor);
+
+    // 医生加入后立即重新计算"中央"，平滑过渡到聚焦视角
+    recenterView();
+
+    const contactShadow=new THREE.Mesh(
+      new THREE.CircleGeometry(1.55,40),
+      new THREE.MeshBasicMaterial({color:'#9eaab4',transparent:true,opacity:.18})
+    );
+    contactShadow.rotation.x=-Math.PI/2;
+    contactShadow.position.set(0,.011,0);
+    scene.add(contactShadow);
+
+    const fit=()=>{
+      const rect=mount.getBoundingClientRect();
+      const width=Math.max(1,Math.floor(rect.width));
+      const height=Math.max(1,Math.floor(rect.height));
+      camera.aspect=width/height;
+      camera.updateProjectionMatrix();
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.8));
+      renderer.setSize(width,height,false);
+    };
+    fit();
+    if('ResizeObserver' in window){
+      const ro=new ResizeObserver(fit);
+      ro.observe(mount);
+    }
+    window.addEventListener('resize',fit,{passive:true});
+
+    let sceneState={survival:100,crewCount:1,activeTask:'待命',aedReady:false,compressing:false,over:false};
+    const bridge=window.FirstAidSceneBridge;
+    const updateHud=(state)=>{
+      sceneState={...sceneState,...state};
+      statusEl.textContent=`状态 ${sceneState.over?'复盘':sceneState.compressing?'按压中':sceneState.activeTask||'待机'}`;
+      survEl.textContent=`生存率 ${sceneState.survival ?? '--'}%`;
+      crewChip.textContent=`团队 ${sceneState.crewCount ?? 1} 人`;
+      taskChip.textContent=`当前任务 ${sceneState.activeTask || '待命'}`;
+      aedChip.textContent=sceneState.aedReady?'AED 已就绪':'AED 未就绪';
+    };
+    updateHud(bridge&&bridge.snapshot?bridge.snapshot:{});
+    window.addEventListener('firstaid:state',e=>updateHud(e.detail||{}));
+
+    const clock=new THREE.Clock();
+    let fpsFrames=0;
+    let fpsElapsed=0;
+    const animate=()=>{
+      stats.begin();
+      const delta=Math.min(clock.getDelta(),0.05);
+      fpsFrames++;
+      fpsElapsed+=delta;
+      if(fpsElapsed>=0.5){
+        fpsEl.textContent=`FPS ${Math.round(fpsFrames/fpsElapsed)}`;
+        fpsFrames=0;
+        fpsElapsed=0;
+      }
+
+      const t=clock.elapsedTime;
+      const targetLift=sceneState.compressing&&!sceneState.over?1:0;
+      chestPlate.position.y=THREE.MathUtils.lerp(chestPlate.position.y,targetLift?1.48+Math.sin(t*10)*0.03:1.53,0.14);
+      pulseHalo.material.opacity=sceneState.over ? .14 : (sceneState.compressing ? .52 : .28);
+      pulseHalo.scale.setScalar(sceneState.compressing?1+Math.sin(t*8)*0.08:1+Math.sin(t*2)*0.03);
+      pulseHalo.material.color.set(sceneState.survival>50?'#0E8A6F':sceneState.survival>25?'#E5A100':'#E5383B');
+      monitorScreenMat.emissive.set(sceneState.survival>50?'#1cc16f':sceneState.survival>25?'#da9c00':'#d73042');
+      monitorScreenMat.color.set(sceneState.survival>50?'#27d17f':sceneState.survival>25?'#f0b323':'#ff556b');
+      patient.rotation.y=THREE.MathUtils.lerp(patient.rotation.y,sceneState.over ? .1 : 0,0.03);
+
+      // 医生微动画（不影响交互）
+      if(doctor&&doctor.userData.animate) doctor.userData.animate(t);
+
+      // 视角平滑过渡：每帧朝目标插值，距离 < 阈值时自动停止
+      if(viewTweening){
+        const k=1-Math.pow(0.001,delta); // 时间无关阻尼，约 0.4s 内完成
+        camera.position.lerp(desiredCamPos,k);
+        controls.target.lerp(desiredTarget,k);
+        if(camera.position.distanceTo(desiredCamPos)<0.01 &&
+           controls.target.distanceTo(desiredTarget)<0.005){
+          camera.position.copy(desiredCamPos);
+          controls.target.copy(desiredTarget);
+          viewTweening=false;
+        }
+      }
+
+      controls.update();
+      renderer.render(scene,camera);
+      stats.end();
+      requestAnimationFrame(animate);
+    };
+    animate();
+  }catch(err){
+    mount.innerHTML='<div class="viz__fallback">3D 场景加载失败，请检查网络后重新打开页面。</div>';
+    fpsEl.textContent='FPS --';
+    statusEl.textContent='状态 加载失败';
+    console.error(err);
+  }
+})();
+</script>
+</body></html>

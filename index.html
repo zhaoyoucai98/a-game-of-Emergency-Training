@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>智能
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    app.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.55, 0);
+    controls.enableDamping = true;
+    controls.minDistance = 4.5;
+    controls.maxDistance = 12;
+    controls.maxPolarAngle = Math.PI * 0.48;
+
+    const clock = new THREE.Clock();
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const markers = [];
+    let breathOn = true;
+    let scanOn = true;
+    let activeMarker = null;
+
+    const M = {
+      floor: new THREE.MeshStandardMaterial({ color: 0x0d2734, roughness: .8, metalness: .05 }),
+      cyan: new THREE.MeshStandardMaterial({ color: 0x28d7ff, emissive: 0x0c6f9b, emissiveIntensity: 1.4, roughness: .25 }),
+      metal: new THREE.MeshStandardMaterial({ color: 0xaec4cc, roughness: .28, metalness: .72 }),
+      darkMetal: new THREE.MeshStandardMaterial({ color: 0x223640, roughness: .45, metalness: .55 }),
+      bed: new THREE.MeshStandardMaterial({ color: 0xddeef4, roughness: .55, metalness: .08 }),
+      mattress: new THREE.MeshStandardMaterial({ color: 0xeaf7fb, roughness: .8 }),
+      sheet: new THREE.MeshStandardMaterial({ color: 0x8fd7ef, roughness: .78, transparent: true, opacity: .76 }),
+      skin: new THREE.MeshStandardMaterial({ color: 0xf1c5a6, roughness: .52 }),
+      gown: new THREE.MeshStandardMaterial({ color: 0xb7e7f5, roughness: .75 }),
+      stripe: new THREE.MeshStandardMaterial({ color: 0x4ab5df, roughness: .72 }),
+      hair: new THREE.MeshStandardMaterial({ color: 0x211915, roughness: .82 }),
+      black: new THREE.MeshStandardMaterial({ color: 0x101820, roughness: .5 }),
+      white: new THREE.MeshStandardMaterial({ color: 0xf7fcff, roughness: .65 }),
+      red: new THREE.MeshStandardMaterial({ color: 0xd06a6a, roughness: .65 }),
+      glass: new THREE.MeshPhysicalMaterial({ color: 0x8cecff, transparent: true, opacity: .16, roughness: .05, transmission: .4, side: THREE.DoubleSide }),
+      tube: new THREE.MeshPhysicalMaterial({ color: 0xc5fbff, transparent: true, opacity: .62, roughness: .06, transmission: .45 })
+    };
+
+    const root = new THREE.Group();
+    scene.add(root);
+
+    let patientParts = {};
+    let scanPlane;
+
+    initLight();
+    createRoom();
+    createBed();
+    createPatient();
+    createIV();
+    createMonitor();
+    createScanCapsule();
+    createMarkers();
+    animate();
+
+    function box(w, h, d, mat, x, y, z) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d, 4, 4, 4), mat);
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    function sphere(r, mat, x, y, z, sx = 1, sy = 1, sz = 1) {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 32, 20), mat);
+      mesh.position.set(x, y, z);
+      mesh.scale.set(sx, sy, sz);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    function capsule(r, len, mat, x, y, z, rotX = 0, rotY = 0, rotZ = 0) {
+      const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 18, 32), mat);
+      mesh.position.set(x, y, z);
+      mesh.rotation.set(rotX, rotY, rotZ);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    function cyl(rt, rb, h, mat, x, y, z, rotX = 0, rotY = 0, rotZ = 0) {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 32), mat);
+      mesh.position.set(x, y, z);
+      mesh.rotation.set(rotX, rotY, rotZ);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    function initLight() {
+      scene.add(new THREE.HemisphereLight(0xdefaff, 0x082637, 1.5));
+      const key = new THREE.DirectionalLight(0xffffff, 3.1);
+      key.position.set(4, 7, 6);
+      key.castShadow = true;
+      key.shadow.mapSize.set(1024, 1024);
+      scene.add(key);
+      const blue = new THREE.PointLight(0x26dfff, 8, 11);
+      blue.position.set(0, 2.8, 2.8);
+      scene.add(blue);
+      const back = new THREE.PointLight(0x3cffc7, 4, 10);
+      back.position.set(-3, 3, -4);
+      scene.add(back);
+    }
+
+    function createRoom() {
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 18), M.floor);
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      const ring1 = new THREE.Mesh(new THREE.TorusGeometry(3.8, .025, 12, 120), new THREE.MeshBasicMaterial({ color: 0x1bcfff, transparent: true, opacity: .45 }));
+      ring1.rotation.x = Math.PI / 2;
+      ring1.position.y = .03;
+      scene.add(ring1);
+      const ring2 = ring1.clone();
+      ring2.scale.setScalar(1.35);
+      ring2.material = ring1.material.clone();
+      ring2.material.opacity = .18;
+      scene.add(ring2);
+
+      for (let i = -4; i <= 4; i++) {
+        const line = box(.012, .012, 8, M.cyan, i, .04, 0);
+        line.material = new THREE.MeshBasicMaterial({ color: 0x154c62, transparent: true, opacity: .28 });
+        scene.add(line);
+      }
+    }
+
+    function createBed() {
+      const bed = new THREE.Group();
+      bed.name = '智能监护病床';医疗病患 3D 监护舱</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: "Microsoft YaHei", Arial, sans-serif;
+      color: #eafaff;
+      background: radial-gradient(circle at 50% 35%, #173849 0%, #07131c 52%, #03080d 100%);
+    }
+    #app { width: 100vw; height: 100vh; }
+    .hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 8;
+    }
+    .title {
+      position: absolute;
+      left: 28px;
+      top: 24px;
+      width: 360px;
+      padding: 18px 20px;
+      border: 1px solid rgba(76, 218, 255, .25);
+      border-radius: 20px;
+      background: linear-gradient(145deg, rgba(12, 39, 54, .84), rgba(7, 21, 32, .62));
+      box-shadow: 0 0 40px rgba(34, 194, 255, .12);
+      backdrop-filter: blur(16px);
+    }
+    .title h1 {
+      margin: 0 0 8px;
+      font-size: 22px;
+      letter-spacing: 1px;
+      color: #ffffff;
+    }
+    .title p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.8;
+      color: #9fd4e7;
+    }
+    .vitals {
+      position: absolute;
+      right: 28px;
+      top: 24px;
+      width: 250px;
+      display: grid;
+      gap: 12px;
+    }
+    .vital {
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(90, 230, 255, .22);
+      background: rgba(5, 23, 34, .72);
+      box-shadow: inset 0 0 24px rgba(55, 199, 255, .06), 0 12px 32px rgba(0,0,0,.2);
+      backdrop-filter: blur(14px);
+    }
+    .vital span { display: block; color: #85b6c8; font-size: 12px; }
+    .vital strong { display: block; margin-top: 4px; font-size: 26px; color: #44f2ff; }
+    .vital em { font-style: normal; color: #5cffb2; }
+    .toolbar {
+      position: absolute;
+      left: 50%;
+      bottom: 28px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      pointer-events: auto;
+    }
+    button {
+      border: 1px solid rgba(84, 222, 255, .35);
+      border-radius: 999px;
+      padding: 11px 17px;
+      color: #eaffff;
+      background: rgba(13, 50, 68, .82);
+      box-shadow: 0 0 24px rgba(50, 201, 255, .12);
+      cursor: pointer;
+    }
+    button.active, button:hover { background: linear-gradient(135deg, #13a7d7, #2fe0b5); color: #04131a; }
+    #tip {
+      position: fixed;
+      display: none;
+      max-width: 280px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(2, 15, 23, .9);
+      border: 1px solid rgba(86, 225, 255, .35);
+      color: #eaffff;
+      line-height: 1.7;
+      font-size: 13px;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .hint {
+      position: absolute;
+      left: 28px;
+      bottom: 30px;
+      color: #87bfd1;
+      font-size: 13px;
+    }
+    @media (max-width: 760px) {
+      .title { left: 12px; top: 12px; width: calc(100vw - 24px); }
+      .vitals { right: 12px; top: 170px; width: 180px; }
+      .vital strong { font-size: 20px; }
+      .toolbar { bottom: 14px; flex-wrap: wrap; justify-content: center; width: 95vw; }
+      .hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div class="hud">
+    <section class="title">
+      <h1>智能医疗病患 3D 监护舱</h1>
+      <p>全新设计：正面可见病患模型、透明扫描舱、生命体征监护、输液系统与交互标记。</p>
+    </section>
+    <section class="vitals">
+      <div class="vital"><span>HEART RATE</span><strong id="hr">78 <em>bpm</em></strong></div>
+      <div class="vital"><span>SPO₂</span><strong>98 <em>%</em></strong></div>
+      <div class="vital"><span>TEMPERATURE</span><strong>36.8 <em>℃</em></strong></div>
+      <div class="vital"><span>INFUSION</span><strong><em>正常</em></strong></div>
+    </section>
+    <div class="toolbar">
+      <button id="btnBreath" class="active">呼吸动画</button>
+      <button id="btnScan" class="active">扫描光效</button>
+      <button id="btnReset">重置视角</button>
+    </div>
+    <div class="hint">拖拽旋转｜滚轮缩放｜点击发光点查看说明</div>
+  </div>
+  <div id="tip"></div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+    const app = document.getElementById('app');
+    const tip = document.getElementById('tip');
+    const btnBreath = document.getElementById('btnBreath');
+    const btnScan = document.getElementById('btnScan');
+    const btnReset = document.getElementById('btnReset');
+    const hr = document.getElementById('hr');
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x06121b);
+    scene.fog = new THREE.Fog(0x06121b, 10, 28);
+
+    const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 100);
+    camera.position.set(0, 4.0, 8.2);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      root.add(bed);
+      bed.add(box(5.8, .22, 2.2, M.bed, 0, .88, 0));
+      bed.add(box(5.25, .32, 1.82, M.mattress, 0, 1.14, 0));
+      bed.add(box(1.05, .22, 1.26, M.white, -1.85, 1.44, 0));
+      bed.add(box(2.15, .12, 1.44, M.sheet, .95, 1.58, 0));
+
+      [-2.45, 2.45].forEach(x => [-.86, .86].forEach(z => {
+        bed.add(cyl(.045, .045, .9, M.metal, x, .42, z));
+        bed.add(cyl(.14, .14, .05, M.darkMetal, x, -.05, z));
+      }));
+      bed.add(box(5.95, .1, .09, M.metal, 0, 1.45, -1.16));
+      bed.add(box(5.95, .1, .09, M.metal, 0, 1.45, 1.16));
+      bed.add(box(.12, .9, 2.25, M.metal, -2.95, 1.28, 0));
+      bed.add(box(.12, .72, 2.25, M.metal, 2.95, 1.18, 0));
+    }
+
+    function createPatient() {
+      const p = new THREE.Group();
+      p.name = '完整平卧病患';
+      p.position.y = 1.62;
+      root.add(p);
+
+      const torso = capsule(.46, 1.0, M.gown, -.1, .18, 0, 0, 0, Math.PI / 2);
+      torso.scale.set(1.08, .86, .92);
+      p.add(torso);
+
+      const neck = capsule(.12, .18, M.skin, -.72, .22, 0, 0, 0, Math.PI / 2);
+      const head = sphere(.34, M.skin, -1.08, .32, 0, .95, 1.13, .88);
+      const hair = sphere(.35, M.hair, -1.12, .45, 0, 1, .58, .92);
+      p.add(neck, head, hair);
+
+      const eyeL = sphere(.026, M.black, -1.16, .35, .11, 1, .35, 1);
+      const eyeR = sphere(.026, M.black, -1.16, .35, -.11, 1, .35, 1);
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(.035, .1, 16), M.skin);
+      nose.position.set(-1.19, .28, 0);
+      nose.rotation.z = Math.PI / 2;
+      const mouth = box(.018, .014, .16, M.red, -1.19, .19, 0);
+      const patch = box(.28, .025, .11, M.white, -1.18, .55, 0);
+      patch.rotation.z = -.12;
+      p.add(eyeL, eyeR, nose, mouth, patch);
+
+      const shoulderL = capsule(.12, .25, M.gown, -.42, .15, -.55, Math.PI / 2, 0, Math.PI / 2);
+      const shoulderR = capsule(.12, .25, M.gown, -.42, .15, .55, Math.PI / 2, 0, Math.PI / 2);
+      const armL = capsule(.11, .95, M.skin, .05, .06, -.77, Math.PI / 2, 0, Math.PI / 2);
+      const armR = capsule(.11, .95, M.skin, .05, .06, .77, Math.PI / 2, 0, Math.PI / 2);
+      const handL = sphere(.12, M.skin, .6, .06, -.77, 1.25, .72, .92);
+      const handR = sphere(.12, M.skin, .6, .06, .77, 1.25, .72, .92);
+      p.add(shoulderL, shoulderR, armL, armR, handL, handR);
+
+      const legL = capsule(.16, 1.28, M.gown, .95, .03, -.28, 0, 0, Math.PI / 2);
+      const legR = capsule(.16, 1.28, M.gown, .95, .03, .28, 0, 0, Math.PI / 2);
+      const footL = box(.35, .13, .2, M.skin, 1.74, .03, -.28);
+      const footR = box(.35, .13, .2, M.skin, 1.74, .03, .28);
+      p.add(legL, legR, footL, footR);
+
+      for (let x = -0.55; x <= .28; x += .22) {
+        const s = box(.028, .78, .92, M.stripe, x, .23, 0);
+        s.rotation.z = Math.PI / 2;
+        p.add(s);
+      }
+      for (let z of [-.32, 0, .32]) {
+        const s = box(1.08, .018, .026, M.stripe, -.1, .63, z);
+        p.add(s);
+      }
+
+      const mask = sphere(.13, M.glass, -1.23, .26, 0, .45, .55, 1);
+      p.add(mask);
+
+      const electrode1 = cyl(.046, .046, .012, M.white, -.25, .66, -.18, Math.PI / 2);
+      const electrode2 = cyl(.046, .046, .012, M.white, -.05, .66, .2, Math.PI / 2);
+      p.add(electrode1, electrode2);
+
+      patientParts = { group: p, torso, armL, armR, head };
+    }
+
+    function createIV() {
+      const iv = new THREE.Group();
+      iv.name = '输液系统';
+      iv.position.set(-2.2, 0, -1.8);
+      root.add(iv);
+      iv.add(cyl(.045, .045, 3.15, M.metal, 0, 1.6, 0));
+      iv.add(cyl(.025, .025, 1.0, M.metal, .42, 3.12, 0, 0, 0, Math.PI / 2));
+      iv.add(cyl(.025, .025, 1.0, M.metal, -.42, 3.12, 0, 0, 0, Math.PI / 2));
+      iv.add(cyl(.62, .62, .035, M.darkMetal, 0, .04, 0));
+      const bag = box(.36, .62, .08, M.glass, .52, 2.78, 0);
+      iv.add(bag);
+
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-1.68, 2.66, -1.8),
+        new THREE.Vector3(-1.62, 2.15, -1.55),
+        new THREE.Vector3(-1.25, 1.76, -1.05),
+        new THREE.Vector3(-.45, 1.68, -.78),
+        new THREE.Vector3(.42, 1.68, -.77)
+      ]);
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 100, .018, 10), M.tube);
+      tube.castShadow = true;
+      root.add(tube);
+      root.add(cyl(.026, .026, .24, M.metal, .52, 1.68, -.77, Math.PI / 2, 0, Math.PI / 2));
+    }
+
+    function createMonitor() {
+      const monitor = new THREE.Group();
+      monitor.position.set(2.95, 1.65, -1.65);
+      root.add(monitor);
+      monitor.add(box(1.25, .78, .08, M.darkMetal, 0, .4, 0));
+      const screen = box(1.08, .58, .03, new THREE.MeshBasicMaterial({ color: 0x061821 }), 0, .4, .055);
+      monitor.add(screen);
+
+      const waveMat = new THREE.LineBasicMaterial({ color: 0x53ffb6 });
+      const points = [];
+      for (let i = 0; i < 36; i++) {
+        const x = -0.48 + i * .028;
+        const y = .4 + Math.sin(i * .8) * .035 + (i % 9 === 0 ? .12 : 0);
+        points.push(new THREE.Vector3(x, y, .08));
+      }
+      monitor.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), waveMat));
+      monitor.add(cyl(.05, .05, .9, M.metal, 0, -.26, 0));
+      monitor.add(cyl(.38, .38, .04, M.darkMetal, 0, -.74, 0));
+    }
+
+    function createScanCapsule() {
+      const frame = new THREE.Group();
+      root.add(frame);
+      const arcMat = new THREE.MeshBasicMaterial({ color: 0x32dcff, transparent: true, opacity: .45 });
+      for (let x of [-1.95, 1.95]) {
+        const arc = new THREE.Mesh(new THREE.TorusGeometry(1.32, .018, 12, 80, Math.PI), arcMat);
+        arc.position.set(x, 1.62, 0);
+        arc.rotation.z = Math.PI / 2;
+        frame.add(arc);
+      }
+      scanPlane = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 2.2), new THREE.MeshBasicMaterial({ color: 0x34e8ff, transparent: true, opacity: .16, side: THREE.DoubleSide }));
+      scanPlane.position.set(-1.8, 1.75, 0);
+      scanPlane.rotation.y = Math.PI / 2;
+      root.add(scanPlane);
+    }
+
+    function createMarkers() {
+      marker('头部状态', '头部：退热贴、吸氧面罩、意识状态观察。', -1.12, 2.25, .55);
+      marker('心电监护', '胸腔：心电贴片采集心率与生命体征。', -.18, 2.28, .55);
+      marker('静脉输液', '手臂：输液管连接留置针，显示输液护理状态。', .48, 1.96, -.9);
+      marker('腿部体位', '腿部：卧床体位与护理观察区域。', 1.16, 1.92, .55);
+    }
+
+    function marker(title, text, x, y, z) {
+      const m = sphere(.07, M.cyan, x, y, z);
+      m.userData = { title, text };
+      markers.push(m);
+      root.add(m);
+      const halo = new THREE.Mesh(new THREE.TorusGeometry(.16, .009, 8, 36), new THREE.MeshBasicMaterial({ color: 0x39e7ff, transparent: true, opacity: .65 }));
+      halo.position.copy(m.position);
+      m.userData.halo = halo;
+      root.add(halo);
+    }
+
+    function setPointer(e) {
+      pointer.x = e.clientX / innerWidth * 2 - 1;
+      pointer.y = -(e.clientY / innerHeight) * 2 + 1;
+    }
+
+    addEventListener('pointermove', e => {
+      setPointer(e);
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObjects(markers)[0]?.object;
+      if (activeMarker && activeMarker !== hit) {
+        activeMarker.scale.setScalar(1);
+        tip.style.display = 'none';
+      }
+      activeMarker = hit || null;
+      if (hit) {
+        hit.scale.setScalar(1.5);
+        tip.style.left = `${e.clientX + 14}px`;
+        tip.style.top = `${e.clientY + 14}px`;
+        tip.innerHTML = `<b>${hit.userData.title}</b><br>${hit.userData.text}`;
+        tip.style.display = 'block';
+      }
+    });
+
+    addEventListener('click', e => {
+      setPointer(e);
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObjects(markers)[0]?.object;
+      if (hit) controls.target.lerp(hit.position, .55);
+    });
+
+    btnBreath.onclick = () => {
+      breathOn = !breathOn;
+      btnBreath.classList.toggle('active', breathOn);
+    };
+    btnScan.onclick = () => {
+      scanOn = !scanOn;
+      btnScan.classList.toggle('active', scanOn);
+      scanPlane.visible = scanOn;
+    };
+    btnReset.onclick = () => {
+      camera.position.set(0, 4.0, 8.2);
+      controls.target.set(0, 1.55, 0);
+      controls.update();
+    };
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const t = clock.getElapsedTime();
+
+      if (breathOn && patientParts.torso) {
+        const b = 1 + Math.sin(t * 1.35) * .025;
+        patientParts.torso.scale.y = .86 * b;
+        patientParts.torso.scale.z = .92 * b;
+        patientParts.armL.rotation.z = Math.PI / 2 + Math.sin(t * 1.1) * .018;
+        patientParts.armR.rotation.z = Math.PI / 2 - Math.sin(t * 1.1) * .012;
+      }
+
+      if (scanOn) {
+        scanPlane.position.x = -1.9 + (Math.sin(t * .85) + 1) * 1.9;
+        scanPlane.material.opacity = .12 + Math.sin(t * 3) * .04;
+      }
+
+      markers.forEach((m, i) => {
+        m.userData.halo.lookAt(camera.position);
+        m.userData.halo.scale.setScalar(1 + Math.sin(t * 3 + i) * .16);
+      });
+
+      hr.innerHTML = `${76 + Math.round(Math.sin(t * 1.8) * 3)} <em>bpm</em>`;
+      controls.update();
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>

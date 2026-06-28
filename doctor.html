@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Three.js 医生 3D 医疗可视化演示</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, "Microsoft YaHei", sans-serif;
+      background: #eef5f8;
+    }
+
+    #app {
+      width: 100%;
+      height: 100%;
+    }
+
+    .panel {
+      position: fixed;
+      left: 20px;
+      top: 20px;
+      z-index: 10;
+      padding: 14px 16px;
+      color: #15313f;
+      background: rgba(255, 255, 255, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(30, 80, 110, 0.14);
+      backdrop-filter: blur(10px);
+    }
+
+    .panel h1 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .panel p {
+      margin: 0 0 12px;
+      font-size: 13px;
+      color: #51717d;
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 8px 13px;
+      color: #fff;
+      background: #1976d2;
+      cursor: pointer;
+      font-size: 13px;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    button:hover {
+      background: #0d5faf;
+      transform: translateY(-1px);
+    }
+
+    #loading {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      z-index: 20;
+      min-width: 220px;
+      padding: 18px 22px;
+      color: #fff;
+      text-align: center;
+      background: rgba(0, 0, 0, 0.72);
+      border-radius: 12px;
+      transform: translate(-50%, -50%);
+    }
+
+    #progressOuter {
+      width: 100%;
+      height: 6px;
+      margin-top: 12px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.22);
+      border-radius: 999px;
+    }
+
+    #progressInner {
+      width: 0%;
+      height: 100%;
+      background: #5ec7ff;
+      transition: width 0.2s ease;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div class="panel">
+    <h1>医生 3D 医疗可视化</h1>
+    <p>鼠标拖拽旋转，滚轮缩放；可替换 models/doctor.glb 为真实医生模型。</p>
+    <div class="buttons">
+      <button id="toggleAnimation">播放/暂停动画</button>
+      <button id="sceneClinic">诊室场景</button>
+      <button id="sceneWard">病房场景</button>
+      <button id="resetCamera">重置视角</button>
+    </div>
+  </div>
+
+  <div id="loading">
+    <div id="loadingText">正在加载医生 3D 模型...</div>
+    <div id="progressOuter"><div id="progressInner"></div></div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    const container = document.querySelector('#app');
+    const loading = document.querySelector('#loading');
+    const loadingText = document.querySelector('#loadingText');
+    const progressInner = document.querySelector('#progressInner');
+    const toggleAnimationButton = document.querySelector('#toggleAnimation');
+    const sceneClinicButton = document.querySelector('#sceneClinic');
+    const sceneWardButton = document.querySelector('#sceneWard');
+    const resetCameraButton = document.querySelector('#resetCamera');
+
+    let doctorModel;
+    let mixer;
+    let activeAction;
+    let animationEnabled = true;
+    let clinicGroup;
+    let wardGroup;
+
+    const clock = new THREE.Clock();
+
+    // 场景、相机、渲染器基础配置
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xeef5f8);
+    scene.fog = new THREE.Fog(0xeef5f8, 12, 32);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(3.2, 2.4, 5.2);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    container.appendChild(renderer.domElement);
+
+    // 轨道控制器：支持旋转、缩放，并限制医疗演示视角
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0, 1.05, 0);
+    controls.minDistance = 2.4;
+    controls.maxDistance = 9;
+    controls.maxPolarAngle = Math.PI * 0.48;
+
+    // 灯光配置：环境光 + 主方向光 + 柔和补光
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.25);
+    scene.add(ambientLight);
+
+    const mainLight = new THREE.DirectionalLight(0xffffff, 2.2);
+    mainLight.position.set(4, 6, 4);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.set(2048, 2048);
+    scene.add(mainLight);
+
+    const fillLight = new THREE.HemisphereLight(0xdff6ff, 0xffffff, 1.1);
+    scene.add(fillLight);
+
+    // 地面与医疗空间基础环境
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(18, 18),
+      new THREE.MeshStandardMaterial({ color: 0xf8fbfc, roughness: 0.9 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const grid = new THREE.GridHelper(18, 18, 0xc7d7de, 0xe4eef2);
+    grid.material.opacity = 0.35;
+    grid.material.transparent = true;
+    scene.add(grid);
+
+    createClinicScene();
+    createWardScene();
+    showScene('clinic');
+    loadDoctorModel();
+
+    // 加载 GLB 医生模型；把真实模型放到 models/doctor.glb 即可替换占位模型
+    function loadDoctorModel() {
+      const loader = new GLTFLoader();
+      loader.load(
+        './models/doctor.glb',
+        (gltf) => {
+          doctorModel = gltf.scene;
+          prepareLoadedModel(doctorModel);
+          scene.add(doctorModel);
+
+          if (gltf.animations.length > 0) {
+            mixer = new THREE.AnimationMixer(doctorModel);
+            activeAction = mixer.clipAction(gltf.animations[0]);
+            activeAction.play();
+          }
+
+          hideLoading('医生模型加载完成');
+        },
+        (event) => {
+          if (event.total > 0) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            progressInner.style.width = `${percent}%`;
+            loadingText.textContent = `正在加载医生 3D 模型... ${percent}%`;
+          }
+        },
+        () => {
+          doctorModel = createFallbackDoctor();
+          scene.add(doctorModel);
+          hideLoading('未找到 models/doctor.glb，已使用内置低模医生占位模型');
+        }
+      );
+    }
+
+    // 处理真实 GLB 模型：居中、统一尺寸、启用阴影、优化贴图显示
+    function prepareLoadedModel(model) {
+      const box = new THREE.Box3().setFromObject(model);
+      const size = new THREE.Vector3();
+      const center = new THREE.Vector3();
+      box.getSize(size);
+      box.getCenter(center);
+
+      const scale = 2.15 / Math.max(size.x, size.y, size.z);
+      model.scale.setScalar(scale);
+      model.position.sub(center.multiplyScalar(scale));
+      model.position.y = 0;
+
+      model.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          if (child.material?.map) {
+            child.material.map.generateMipmaps = true;
+            child.material.map.minFilter = THREE.LinearMipmapLinearFilter;
+            child.material.map.colorSpace = THREE.SRGBColorSpace;
+          }
+        }
+      });
+    }
+
+    // 内置方块医生占位模型：类似我的世界的方方正正长条风格
+    function createFallbackDoctor() {
+      const group = new THREE.Group();
+      group.name = '方块长条医生占位模型';
+
+      const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.78 });
+      const blue = new THREE.MeshStandardMaterial({ color: 0x3f9fd6, roughness: 0.72 });
+      const skin = new THREE.MeshStandardMaterial({ color: 0xf0c29d, roughness: 0.76 });
+      const dark = new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.8 });
+      const metal = new THREE.MeshStandardMaterial({ color: 0x87939a, metalness: 0.2, roughness: 0.45 });
+      const black = new THREE.MeshStandardMaterial({ color: 0x111820, roughness: 0.8 });
+
+      const head = createBlock(0, 2.08, 0, 0.58, 0.48, 0.48, skin);
+      const hairTop = createBlock(0, 2.35, -0.02, 0.62, 0.14, 0.52, dark);
+      const hairFront = createBlock(0, 2.22, 0.23, 0.62, 0.12, 0.08, dark);
+      group.add(head, hairTop, hairFront);
+
+      const eyeLeft = createBlock(-0.13, 2.11, 0.245, 0.055, 0.055, 0.012, black);
+      const eyeRight = createBlock(0.13, 2.11, 0.245, 0.055, 0.055, 0.012, black);
+      const mouth = createBlock(0, 1.98, 0.25, 0.16, 0.035, 0.014, black);
+      group.add(eyeLeft, eyeRight, mouth);
+
+      const coat = createBlock(0, 1.25, 0, 0.72, 1.16, 0.38, white);
+      const shirt = createBlock(0, 1.22, 0.205, 0.34, 0.92, 0.035, blue);
+      const collarLeft = createBlock(-0.16, 1.68, 0.23, 0.18, 0.22, 0.035, white);
+      const collarRight = createBlock(0.16, 1.68, 0.23, 0.18, 0.22, 0.035, white);
+      collarLeft.rotation.z = -0.25;
+      collarRight.rotation.z = 0.25;
+      group.add(coat, shirt, collarLeft, collarRight);
+
+      const armLeft = createBlock(-0.55, 1.22, 0, 0.22, 1.06, 0.26, white);
+      const armRight = createBlock(0.55, 1.22, 0, 0.22, 1.06, 0.26, white);
+      const handLeft = createBlock(-0.55, 0.6, 0, 0.22, 0.18, 0.26, skin);
+      const handRight = createBlock(0.55, 0.6, 0, 0.22, 0.18, 0.26, skin);
+      group.add(armLeft, armRight, handLeft, handRight);
+
+      const legLeft = createBlock(-0.19, 0.34, 0, 0.26, 0.76, 0.3, dark);
+      const legRight = createBlock(0.19, 0.34, 0, 0.26, 0.76, 0.3, dark);
+      const shoeLeft = createBlock(-0.19, 0.03, 0.06, 0.28, 0.12, 0.42, black);
+      const shoeRight = createBlock(0.19, 0.03, 0.06, 0.28, 0.12, 0.42, black);
+      group.add(legLeft, legRight, shoeLeft, shoeRight);
+
+      const stethoscopeTube = createBlock(0, 1.56, 0.25, 0.46, 0.045, 0.035, metal);
+      const stethoscopeDrop = createBlock(0.16, 1.33, 0.25, 0.045, 0.38, 0.035, metal);
+      const chestPiece = createBlock(0.16, 1.1, 0.26, 0.14, 0.14, 0.035, metal);
+      group.add(stethoscopeTube, stethoscopeDrop, chestPiece);
+
+      group.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+
+      group.userData.animate = (elapsed) => {
+        armRight.rotation.z = Math.sin(elapsed * 2.4) * 0.32;
+        handRight.rotation.z = armRight.rotation.z;
+        group.position.y = Math.sin(elapsed * 1.6) * 0.025;
+      };
+
+      return group;
+    }
+
+    function createBlock(x, y, z, width, height, depth, material) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    // 诊室场景：办公桌、电脑、墙面医疗十字
+    function createClinicScene() {
+      clinicGroup = new THREE.Group();
+
+      const desk = new THREE.Mesh(
+        new THREE.BoxGeometry(1.9, 0.12, 0.72),
+        new THREE.MeshStandardMaterial({ color: 0xd9e7ec, roughness: 0.7 })
+      );
+      desk.position.set(-2.4, 0.72, -1.15);
+      desk.castShadow = true;
+      clinicGroup.add(desk);
+
+      const monitor = new THREE.Mesh(
+        new THREE.BoxGeometry(0.55, 0.34, 0.035),
+        new THREE.MeshStandardMaterial({ color: 0x253238, roughness: 0.5 })
+      );
+      monitor.position.set(-2.35, 1.05, -1.15);
+      monitor.castShadow = true;
+      clinicGroup.add(monitor);
+
+      const crossMaterial = new THREE.MeshStandardMaterial({ color: 0x2bb3a3, roughness: 0.55 });
+      const crossA = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.66, 0.04), crossMaterial);
+      const crossB = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.18, 0.04), crossMaterial);
+      crossA.position.set(2.5, 1.78, -1.8);
+      crossB.position.copy(crossA.position);
+      clinicGroup.add(crossA, crossB);
+
+      scene.add(clinicGroup);
+    }
+
+    // 病房场景：病床、枕头、监护仪
+    function createWardScene() {
+      wardGroup = new THREE.Group();
+
+      const bed = new THREE.Mesh(
+        new THREE.BoxGeometry(2.1, 0.25, 0.9),
+        new THREE.MeshStandardMaterial({ color: 0xf5f9fb, roughness: 0.72 })
+      );
+      bed.position.set(-2.25, 0.55, -1.1);
+      bed.castShadow = true;
+      wardGroup.add(bed);
+
+      const pillow = new THREE.Mesh(
+        new THREE.BoxGeometry(0.55, 0.14, 0.55),
+        new THREE.MeshStandardMaterial({ color: 0xcfeeff, roughness: 0.78 })
+      );
+      pillow.position.set(-2.9, 0.78, -1.1);
+      pillow.castShadow = true;
+      wardGroup.add(pillow);
+
+      const monitor = new THREE.Mesh(
+        new THREE.BoxGeometry(0.48, 0.34, 0.05),
+        new THREE.MeshStandardMaterial({ color: 0x1c2a2f, roughness: 0.45 })
+      );
+      monitor.position.set(2.35, 1.25, -1.25);
+      monitor.castShadow = true;
+      wardGroup.add(monitor);
+
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(2.16, 1.25, -1.215),
+          new THREE.Vector3(2.25, 1.33, -1.215),
+          new THREE.Vector3(2.36, 1.17, -1.215),
+          new THREE.Vector3(2.5, 1.32, -1.215)
+        ]),
+        new THREE.LineBasicMaterial({ color: 0x50ff9a })
+      );
+      wardGroup.add(line);
+
+      scene.add(wardGroup);
+    }
+
+    function showScene(type) {
+      clinicGroup.visible = type === 'clinic';
+      wardGroup.visible = type === 'ward';
+    }
+
+    function hideLoading(message) {
+      loadingText.textContent = message;
+      progressInner.style.width = '100%';
+      setTimeout(() => {
+        loading.style.display = 'none';
+      }, 850);
+    }
+
+    toggleAnimationButton.addEventListener('click', () => {
+      animationEnabled = !animationEnabled;
+      if (activeAction) {
+        activeAction.paused = !animationEnabled;
+      }
+    });
+
+    sceneClinicButton.addEventListener('click', () => showScene('clinic'));
+    sceneWardButton.addEventListener('click', () => showScene('ward'));
+
+    resetCameraButton.addEventListener('click', () => {
+      camera.position.set(3.2, 2.4, 5.2);
+      controls.target.set(0, 1.05, 0);
+      controls.update();
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const delta = clock.getDelta();
+      const elapsed = clock.elapsedTime;
+
+      if (animationEnabled && mixer) {
+        mixer.update(delta);
+      }
+
+      if (animationEnabled && doctorModel?.userData.animate) {
+        doctorModel.userData.animate(elapsed);
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>

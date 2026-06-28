@@ -1,0 +1,364 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>急救演练</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#FAFAF9;--surface:#FFF;--ink:#16181D;--mute:#6B7280;--line:#E8E8E6;
+    --critical:#E5383B;--critical-d:#BE2D30;--vital:#0E8A6F;--amber:#E5A100;
+    --sans:'Inter','PingFang SC','Noto Sans SC',system-ui,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;--r:12px;--ease:cubic-bezier(.2,0,0,1);}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    min-height:100vh;display:flex;flex-direction:column;}
+
+  /* 顶栏 */
+  .top{display:flex;align-items:center;gap:14px;padding:14px 22px;border-bottom:1px solid var(--line);}
+  .top h1{font-size:14px;font-weight:700;margin:0;white-space:nowrap;}
+  .surv{flex:1;height:8px;background:var(--line);border-radius:5px;overflow:hidden;min-width:80px;}
+  .surv>i{display:block;height:100%;width:100%;background:var(--vital);transition:width .4s var(--ease),background .4s;}
+  .surv-pct,.timer{font-family:var(--mono);font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums;}
+  .pause{font:inherit;font-size:12px;padding:5px 12px;border:1px solid var(--line);border-radius:7px;background:#fff;cursor:pointer;min-height:44px;}
+
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;min-height:110px;}
+  .victim{width:230px;height:104px;}
+
+  /* 分身通道 */
+  .crew{display:flex;gap:12px;padding:14px 22px;justify-content:center;flex-wrap:wrap;}
+  .ch{width:128px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+    padding:12px 12px 14px;cursor:pointer;transition:border-color .2s,box-shadow .2s,transform .1s;
+    font:inherit;text-align:left;color:inherit;-webkit-appearance:none;appearance:none;}
+  .ch:active{transform:scale(.98);}
+  .ch--active{border-color:var(--ink);box-shadow:0 0 0 4px rgba(22,24,29,.05);}
+  .ch__top{display:flex;align-items:center;gap:7px;}
+  .ch__glyph{width:20px;height:20px;flex:0 0 20px;color:var(--ink);}
+  .ch__name{font-size:13px;font-weight:600;}
+  .ch__role{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--mute);margin-top:5px;}
+  .ch__task{display:flex;align-items:center;gap:6px;font-size:12px;margin:9px 0 11px;height:14px;}
+  .ch__task .pip{width:7px;height:7px;border-radius:50%;background:var(--mute);}
+  .ch__task .pip--beat{background:var(--vital);animation:beat 1s var(--ease) infinite;}
+  @keyframes beat{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.7);opacity:.5;}}
+  .ch__stam{display:flex;align-items:center;gap:8px;}
+  .ch__bar{flex:1;height:5px;background:var(--line);border-radius:3px;overflow:hidden;}
+  .ch__bar>i{display:block;height:100%;background:var(--vital);transition:width .4s,background .4s;}
+  .ch--mid .ch__bar>i{background:var(--amber);} .ch--low .ch__bar>i{background:var(--critical);}
+  .ch__val{font-family:var(--mono);font-size:12px;min-width:20px;text-align:right;}
+  .ch--low .ch__val{color:var(--critical-d);}
+
+  .actions{padding:14px 22px 22px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+  .btn-a{font:inherit;font-size:14px;padding:11px 18px;border:1px solid var(--line);border-radius:8px;
+    background:#fff;cursor:pointer;transition:border-color .15s,transform .1s;min-height:44px;}
+  .btn-a:hover{border-color:var(--ink);} .btn-a:active{transform:scale(.97);}
+  .btn-a:disabled{opacity:.35;cursor:not-allowed;}
+  .btn-a.is-red,.btn-a.is-on{background:var(--critical);border-color:var(--critical);color:#fff;font-weight:500;}
+  .btn-a.is-red:hover{background:var(--critical-d);border-color:var(--critical-d);}
+
+  .ch:focus-visible,.btn-a:focus-visible,.pause:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+
+  /* 导师卡 */
+  .mentor{position:fixed;right:22px;bottom:22px;width:320px;max-width:calc(100vw - 44px);
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;
+    box-shadow:0 4px 16px rgba(0,0,0,.06);opacity:0;transform:translateY(16px);pointer-events:none;
+    transition:opacity .22s var(--ease),transform .22s var(--ease);cursor:pointer;z-index:40;}
+  .mentor.is-show{opacity:1;transform:translateY(0);pointer-events:auto;}
+  .mentor__accent{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--mute);}
+  .mentor[data-type="correct"] .mentor__accent{background:var(--vital);}
+  .mentor[data-type="warn"] .mentor__accent{background:var(--critical);}
+  .mentor__inner{padding:14px 14px 14px 22px;}
+  .mentor__head{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+  .mentor__name{font-size:13px;font-weight:500;} .mentor__dot{width:6px;height:6px;border-radius:50%;background:var(--mute);margin-left:auto;}
+  .mentor[data-type="correct"] .mentor__dot{background:var(--vital);}
+  .mentor[data-type="warn"] .mentor__dot{background:var(--critical);}
+  .mentor__text{font-size:15px;line-height:1.6;min-height:1.6em;}
+  .mentor__caret{display:inline-block;width:2px;height:1em;vertical-align:-2px;background:var(--ink);margin-left:2px;animation:blink .9s steps(1) infinite;}
+  @keyframes blink{50%{opacity:0;}}
+  .mentor__progress{height:2px;background:var(--line);transform-origin:left;}
+  .mentor.is-counting .mentor__progress{animation:shrink linear forwards;animation-duration:var(--fdur,4200ms);}
+  .mentor:hover .mentor__progress{animation-play-state:paused;}
+  @keyframes shrink{to{transform:scaleX(0);}}
+
+  /* 复盘 */
+  .rv{position:fixed;inset:0;background:rgba(250,250,249,.92);display:none;align-items:center;justify-content:center;z-index:60;}
+  .rv.on{display:flex;}
+  .review{width:360px;max-width:92vw;background:var(--surface);border:1px solid var(--line);
+    border-radius:16px;overflow:hidden;box-shadow:0 10px 40px rgba(22,24,29,.08);}
+  .ecg{position:relative;height:90px;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:18px 18px;background-position:center;}
+  .ecg svg{position:absolute;inset:0;width:100%;height:100%;}
+  .ecg path{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:trace 1.7s var(--ease) .15s forwards;}
+  @keyframes trace{to{stroke-dashoffset:0;}}
+  .review__body{padding:22px;}
+  .review__head{display:flex;align-items:baseline;gap:12px;}
+  .review__grade{font-family:var(--mono);font-size:52px;font-weight:600;line-height:1;color:var(--vital);}
+  .review--fail .review__grade{color:var(--critical);}
+  .review__verdict{font-size:15px;font-weight:700;} .review__sub{font-family:var(--mono);font-size:12px;color:var(--mute);}
+  .rows{margin:18px 0 16px;}
+  .row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:13px;}
+  .row:last-child{border-bottom:1px solid var(--line);}
+  .row__bar{flex:0 0 84px;height:4px;background:var(--line);border-radius:2px;overflow:hidden;}
+  .row__bar>i{display:block;height:100%;background:var(--vital);}
+  .review--fail .row__bar>i{background:var(--critical);}
+  .row__score{font-family:var(--mono);font-size:12px;color:var(--mute);min-width:44px;text-align:right;}
+  .review__tip{font-size:13px;line-height:1.55;color:var(--mute);border-left:2px solid var(--vital);padding-left:12px;margin:0 0 20px;}
+  .review--fail .review__tip{border-color:var(--critical);}
+  .review .btn{width:100%;padding:13px;border:none;border-radius:9px;background:var(--ink);color:#fff;font:inherit;font-size:14px;font-weight:500;cursor:pointer;min-height:44px;}
+  .review .btn:hover{opacity:.88;}
+
+  /* 入场 */
+  .intro{position:fixed;inset:0;background:var(--paper);z-index:100;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:8px;transition:opacity .4s var(--ease),transform .4s var(--ease);}
+  .intro.is-leaving{opacity:0;transform:scale(1.02);pointer-events:none;}
+  .intro__mon{position:relative;width:min(420px,82vw);height:130px;opacity:0;animation:grid .4s var(--ease) forwards;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:20px 20px;background-position:center;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);}
+  @keyframes grid{to{opacity:1;}}
+  .intro__mon svg{position:absolute;inset:0;width:100%;height:100%;}
+  .intro__mon path{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;}
+  .intro__flat{stroke:var(--mute);animation:trace2 .55s linear .1s forwards;}
+  .intro__beat{stroke:var(--vital);animation:trace2 .35s var(--ease) .58s forwards;}
+  @keyframes trace2{to{stroke-dashoffset:0;}}
+  .intro__glow{position:absolute;left:46%;top:50%;width:60px;height:60px;border-radius:50%;
+    background:radial-gradient(var(--vital),transparent 70%);transform:translate(-50%,-50%) scale(.3);opacity:0;animation:glow .55s var(--ease) .6s;}
+  @keyframes glow{0%{opacity:0;transform:translate(-50%,-50%) scale(.3);}40%{opacity:.45;}100%{opacity:0;transform:translate(-50%,-50%) scale(1.9);}}
+  .intro__title{font-size:26px;font-weight:700;letter-spacing:.04em;opacity:0;transform:translateY(8px);animation:rise .5s var(--ease) .62s forwards;}
+  .intro__cap{font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:var(--mute);text-transform:uppercase;opacity:0;animation:fade .5s var(--ease) .95s forwards;}
+  .intro__btn{margin-top:18px;padding:13px 30px;border:none;border-radius:9px;background:var(--ink);color:#fff;font:inherit;font-size:15px;font-weight:500;cursor:pointer;opacity:0;transform:translateY(8px);animation:rise .45s var(--ease) 1.25s forwards;min-height:44px;}
+  .intro__btn:hover{opacity:.88;} .intro__btn:focus-visible,.review .btn:focus-visible{outline:2px solid var(--vital);outline-offset:3px;}
+  @keyframes rise{to{opacity:1;transform:none;}} @keyframes fade{to{opacity:1;}}
+  .book3d{width:min(520px,88vw);height:260px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 10px 34px rgba(22,24,29,.08);overflow:hidden;margin-bottom:18px;opacity:0;transform:translateY(10px);animation:rise .5s var(--ease) .35s forwards;}
+  .book3d canvas{width:100%;height:100%;display:block;}
+
+  /* 场景菜单 */
+  .menu{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--paper);z-index:90;}
+  .menu.on{display:flex;} .menu__h{font-size:18px;font-weight:700;margin:0 0 6px;}
+  .menu__card{width:min(420px,86vw);text-align:left;background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-height:44px;}
+  .menu__card:hover{border-color:var(--ink);} .menu__card:focus-visible{outline:2px solid var(--vital);outline-offset:2px;}
+  .menu__card b{font-size:15px;} .menu__card span{font-size:12px;color:var(--mute);}
+
+  .hm-sim .hm__stage{display:flex;align-items:center;justify-content:center;gap:28px;padding:30px 20px;}
+  .victim{transform-origin:60px 68px;will-change:transform;}
+  .victim.is-thrust{animation:hmThrust .46s cubic-bezier(.2,.9,.18,1);}
+  @keyframes hmThrust{0%{transform:translateY(0) scale(1);}35%{transform:translateY(-16px) scale(1.04);}58%{transform:translateY(4px) scale(.99);}100%{transform:translateY(0) scale(1);}}
+  .hm__copy{width:min(420px,88vw);}
+  .hm__phase{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--critical);margin-bottom:10px;}
+  .hm__score{margin-top:12px!important;font-family:var(--mono);font-size:12px!important;color:var(--critical)!important;letter-spacing:.04em;}
+  .hm__learn{margin-top:12px!important;color:var(--mute)!important;border-left:2px solid var(--vital);padding-left:12px;font-size:13px!important;line-height:1.65!important;}
+  .hm__choice{background:#fff!important;border-color:var(--line)!important;color:var(--ink)!important;display:inline-flex;align-items:center;gap:8px;justify-content:center;}
+  .hm__choice i{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-family:var(--mono);font-size:13px;line-height:1;}
+  .hm__choice.success{border-color:var(--vital)!important;box-shadow:0 0 0 3px rgba(14,138,111,.08);}
+  .hm__choice.success i{background:var(--vital);color:#fff;}
+  .hm__choice.error{border-color:var(--critical)!important;box-shadow:0 0 0 3px rgba(229,56,59,.08);animation:blShake .28s var(--ease);}
+  .hm__choice.error i{background:var(--critical);color:#fff;}
+  .hm__next{border-color:var(--ink)!important;min-width:140px;}
+  .hm__thrust{margin-top:16px;height:26px;border:1px solid var(--line);border-radius:8px;position:relative;overflow:hidden;background:#fff;}
+  .hm__thrust i{position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(14,138,111,.16);transition:width .35s var(--ease);}
+  .hm__thrust span{position:relative;display:flex;align-items:center;justify-content:center;height:100%;font-family:var(--mono);font-size:12px;color:var(--vital);}
+  .hm__toast{position:fixed;inset:0;background:rgba(250,250,249,.72);display:flex;align-items:center;justify-content:center;z-index:55;backdrop-filter:blur(3px);}
+  .hm__toast[hidden]{display:none;}
+  .hm__toast-card{width:min(360px,88vw);background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 16px 48px rgba(22,24,29,.12);transform:translateY(10px);opacity:0;transition:opacity .18s var(--ease),transform .18s var(--ease);}
+  .hm__toast.is-show .hm__toast-card{transform:none;opacity:1;}
+  .hm__toast-card b{display:block;font-size:15px;margin-bottom:8px;color:var(--critical);}
+  .hm__toast-card p{font-size:14px;line-height:1.65;color:var(--ink);margin:0 0 18px;}
+  .hm__toast-ok{width:100%;background:#fff!important;color:var(--ink)!important;border-color:var(--ink)!important;}
+
+  .bl{min-height:calc(100vh - 61px);display:flex;flex-direction:column;}
+  .bl__stage{flex:1;display:flex;align-items:center;justify-content:center;gap:34px;padding:28px 24px;}
+  .bl__victim{width:260px;height:136px;flex:0 0 auto;}
+  .bl__copy{width:min(420px,88vw);}
+  .bl__kicker{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--critical);margin-bottom:10px;}
+  .bl__copy h2{font-size:24px;line-height:1.2;margin:0 0 10px;}
+  .bl__copy p{font-size:15px;line-height:1.7;margin:0;color:var(--ink);}
+  .bl__rule{margin-top:14px!important;color:var(--mute)!important;border-left:2px solid var(--critical);padding-left:12px;font-size:13px!important;}
+  .bl__hint{margin-top:12px!important;color:var(--mute)!important;border-left:2px solid var(--vital);padding-left:12px;}
+  .bl__score{margin-top:12px!important;font-family:var(--mono);font-size:12px!important;color:var(--critical)!important;letter-spacing:.04em;}
+  .bl__hold{margin-top:16px;height:26px;border:1px solid var(--line);border-radius:8px;position:relative;overflow:hidden;background:#fff;}
+  .bl__hold i{position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(14,138,111,.16);transition:width .35s var(--ease);}
+  .bl__hold span{position:relative;display:flex;align-items:center;justify-content:center;height:100%;font-family:var(--mono);font-size:12px;color:var(--vital);}
+  .bl__actions{margin-top:auto;}
+  .bl__choice{background:#fff!important;border-color:var(--line)!important;color:var(--ink)!important;display:inline-flex;align-items:center;gap:8px;justify-content:center;}
+  .bl__choice i{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-family:var(--mono);font-size:13px;line-height:1;}
+  .bl__choice.is-correct{border-color:var(--vital)!important;box-shadow:0 0 0 3px rgba(14,138,111,.08);}
+  .bl__choice.is-correct i{background:var(--vital);color:#fff;}
+  .bl__choice.is-wrong{border-color:var(--critical)!important;box-shadow:0 0 0 3px rgba(229,56,59,.08);animation:blShake .28s var(--ease);}
+  .bl__choice.is-wrong i{background:var(--critical);color:#fff;}
+  @keyframes blShake{0%,100%{transform:translateX(0);}25%{transform:translateX(-3px);}75%{transform:translateX(3px);}}
+  .bl__toast{position:fixed;inset:0;background:rgba(250,250,249,.72);display:flex;align-items:center;justify-content:center;z-index:55;backdrop-filter:blur(3px);}
+  .bl__toast[hidden]{display:none;}
+  .bl__toast-card{width:min(360px,88vw);background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 16px 48px rgba(22,24,29,.12);transform:translateY(10px);opacity:0;transition:opacity .18s var(--ease),transform .18s var(--ease);}
+  .bl__toast.is-show .bl__toast-card{transform:none;opacity:1;}
+  .bl__toast-card b{display:block;font-size:15px;margin-bottom:8px;color:var(--critical);}
+  .bl__toast-card p{font-size:14px;line-height:1.65;color:var(--ink);margin:0 0 18px;}
+  .bl__toast-ok{width:100%;background:#fff!important;color:var(--ink)!important;border-color:var(--ink)!important;}
+
+  /* 移动端 */
+  @media (max-width:560px){
+    .top{flex-wrap:wrap;gap:8px 12px;padding:12px 16px;}
+    .top h1{flex:1 0 100%;}
+    .crew{gap:8px;padding:12px;}
+    .ch{width:calc(50% - 4px);}
+    .actions{padding:12px 16px 16px;}
+    .btn-a{flex:1 1 calc(50% - 4px);}
+    .mentor{left:12px;right:12px;width:auto;bottom:12px;}
+    .bl__stage{flex-direction:column;gap:12px;text-align:left;padding:18px 16px;}
+    .bl__victim{width:220px;height:116px;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .mentor__caret,.ch__task .pip--beat,.intro__glow{animation:none;}
+    .ecg path,.intro__flat,.intro__beat{animation:none;stroke-dashoffset:0;}
+    .intro__mon,.intro__title,.intro__cap,.intro__btn{animation:none;opacity:1;transform:none;}}
+</style></head>
+<body>
+  <header class="top">
+    <h1>急救演练</h1>
+    <div class="surv" id="survWrap" role="progressbar" aria-label="状态" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i id="survBar"></i></div>
+    <span class="surv-pct" id="survPct">100%</span>
+    <span class="timer" id="timer">00:00</span>
+    <button class="pause" id="soundBtn" aria-pressed="true" aria-label="声音开关">声音 ♪</button>
+    <button class="pause" id="pauseBtn">暂停</button>
+  </header>
+
+  <div id="sceneRoot"></div>
+
+  <aside class="mentor" id="mentorCard" data-type="hint" aria-live="polite">
+    <span class="mentor__accent"></span>
+    <div class="mentor__inner"><div class="mentor__head">
+      <svg width="26" height="26" aria-hidden="true" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" stroke="#16181D" stroke-width="1.5"/><path d="M14 8.5v11M8.5 14h11" stroke="#E5383B" stroke-width="2" stroke-linecap="round"/></svg>
+      <span class="mentor__name">急救导师</span><span class="mentor__dot"></span></div>
+      <div class="mentor__text" id="mentorText"></div></div>
+    <div class="mentor__progress"></div>
+  </aside>
+
+  <div class="rv" id="review" role="dialog" aria-modal="true" aria-label="抢救复盘"><div class="review" id="reviewCard">
+    <div class="ecg"><svg id="ecgSvg" viewBox="0 0 360 96" preserveAspectRatio="none"></svg></div>
+    <div class="review__body" id="reviewBody"></div>
+  </div></div>
+
+  <div class="intro" id="intro">
+    <div class="book3d" id="book3d" aria-label="急救知识三维模型"></div>
+    <div class="intro__mon"><div class="intro__glow"></div>
+      <svg viewBox="0 0 420 130" preserveAspectRatio="none">
+        <path class="intro__flat" d="M0,65 H420" pathLength="1"/>
+        <path class="intro__beat" d="M168,65 l10,0 5,-38 6,62 6,-32 7,8 l10,0" pathLength="1"/></svg></div>
+    <h1 class="intro__title">急救演练</h1>
+    <p class="intro__cap">心律建立 — 准备抢救</p>
+    <button class="intro__btn" id="start">开始抢救</button>
+  </div>
+
+  <div class="menu" id="menu" hidden>
+    <h2 class="menu__h">选择演练场景</h2>
+    <button class="menu__card" data-scene="cpr"><b>心脏骤停 · 团队 CPR</b><span>多救援者协作，维持高质量按压并尽快 AED 除颤</span></button>
+    <button class="menu__card" data-scene="heimlich"><b>异物梗阻 · 海姆立克</b><span>判断轻/重度，拍背与腹部冲击交替解除梗阻</span></button>
+    <button class="menu__card" data-scene="bleeding"><b>创伤出血 · 止血包扎</b><span>清洁消毒、加压止血、止血带安全与高危误区识别</span></button>
+  </div>
+
+<script src="shared.js"></script>
+<script src="heimlich-core.js"></script>
+<script src="bleeding-core.js"></script>
+<script src="scene-cpr.js"></script>
+<script src="scene-heimlich.js"></script>
+<script src="scene-bleeding.js"></script>
+<script type="module">
+import * as THREE from './vendor/three/three.module.js';
+
+const holder = document.getElementById('book3d');
+if(holder){
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#ffffff');
+  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+  camera.position.set(3.2, 2.2, 4.6);
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false });
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
+  holder.appendChild(renderer.domElement);
+
+  scene.add(new THREE.HemisphereLight('#ffffff', '#d6e1ea', 2.1));
+  const key = new THREE.DirectionalLight('#ffffff', 2.4);
+  key.position.set(3, 5, 4);
+  scene.add(key);
+
+  const group = new THREE.Group();
+  scene.add(group);
+
+  const red = new THREE.MeshStandardMaterial({ color:'#E5383B', roughness:.42 });
+  const white = new THREE.MeshStandardMaterial({ color:'#ffffff', roughness:.35 });
+  const paper = new THREE.MeshStandardMaterial({ color:'#f8fafc', roughness:.72 });
+  const blue = new THREE.MeshStandardMaterial({ color:'#2b6cb0', roughness:.45 });
+  const skin = new THREE.MeshStandardMaterial({ color:'#efbd9b', roughness:.68 });
+  const green = new THREE.MeshStandardMaterial({ color:'#0E8A6F', roughness:.48 });
+
+  const book = new THREE.Mesh(new THREE.BoxGeometry(1.7,.18,1.2), paper);
+  book.position.set(-.7,.15,0);
+  book.rotation.z = -.08;
+  group.add(book);
+  const cover = new THREE.Mesh(new THREE.BoxGeometry(1.75,.08,1.24), blue);
+  cover.position.set(-.72,.31,0);
+  cover.rotation.z = -.08;
+  group.add(cover);
+  const crossA = new THREE.Mesh(new THREE.BoxGeometry(.5,.1,.14), white);
+  crossA.position.set(-.72,.38,0);
+  crossA.rotation.z = -.08;
+  group.add(crossA);
+  const crossB = new THREE.Mesh(new THREE.BoxGeometry(.14,.1,.5), white);
+  crossB.position.set(-.72,.39,0);
+  crossB.rotation.z = -.08;
+  group.add(crossB);
+
+  const kit = new THREE.Mesh(new THREE.BoxGeometry(1.05,.65,.62), red);
+  kit.position.set(1.0,.46,.05);
+  group.add(kit);
+  const kitCrossA = new THREE.Mesh(new THREE.BoxGeometry(.45,.06,.12), white);
+  kitCrossA.position.set(1.0,.83,.37);
+  group.add(kitCrossA);
+  const kitCrossB = new THREE.Mesh(new THREE.BoxGeometry(.12,.06,.38), white);
+  kitCrossB.position.set(1.0,.84,.37);
+  group.add(kitCrossB);
+
+  const arm = new THREE.Mesh(new THREE.CapsuleGeometry(.18,1.15,16,32), skin);
+  arm.position.set(.18,.72,-.65);
+  arm.rotation.z = Math.PI/2;
+  group.add(arm);
+  const wound = new THREE.Mesh(new THREE.SphereGeometry(.16,32,16), red);
+  wound.position.set(.45,.72,-.45);
+  wound.scale.set(1.45,.35,.18);
+  group.add(wound);
+  const bandage = new THREE.Mesh(new THREE.TorusGeometry(.32,.025,12,48), white);
+  bandage.position.set(.45,.72,-.45);
+  bandage.rotation.y = Math.PI/2;
+  group.add(bandage);
+
+  const pulse = new THREE.Mesh(new THREE.TorusGeometry(.5,.016,8,64), green);
+  pulse.position.set(.05,1.2,.05);
+  pulse.rotation.x = Math.PI/2;
+  group.add(pulse);
+
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(2.8,64), new THREE.MeshStandardMaterial({ color:'#eef2f5', roughness:.8 }));
+  floor.rotation.x = -Math.PI/2;
+  floor.position.y = -.02;
+  scene.add(floor);
+
+  const resize = () => {
+    const r = holder.getBoundingClientRect();
+    renderer.setSize(r.width, r.height, false);
+    camera.aspect = r.width / r.height;
+    camera.updateProjectionMatrix();
+  };
+  new ResizeObserver(resize).observe(holder);
+  resize();
+
+  const tick = (t) => {
+    group.rotation.y = Math.sin(t * .00045) * .35;
+    pulse.scale.setScalar(1 + Math.sin(t * .003) * .08);
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+</script>
+<script>
+function boot(){ document.getElementById('start').onclick=()=>{
+  Sound.unlock();
+  const intro=document.getElementById('intro'); intro.classList.add('is-leaving');
+  setTimeout(()=>{intro.style.display='none'; SceneHost.start();},420);
+}; document.getElementById('start').focus(); }
+if (typeof document !== 'undefined' && !window.__TEST__) boot();
+</script>
+</body></html>

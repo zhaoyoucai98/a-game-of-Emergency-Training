@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AED除颤器3D教学展示</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: "Microsoft YaHei", Arial, sans-serif;
+      background: #f4f8fb;
+      color: #17324d;
+    }
+    #app { width: 100vw; height: 100vh; }
+    .panel {
+      position: fixed;
+      left: 20px;
+      top: 20px;
+      width: min(330px, calc(100vw - 40px));
+      padding: 18px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 18px 45px rgba(15, 50, 80, 0.14);
+      z-index: 10;
+    }
+    .panel h1 { margin: 0 0 8px; font-size: 21px; }
+    .panel p { margin: 0 0 14px; font-size: 13px; line-height: 1.7; color: #53677b; }
+    .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    button {
+      border: 0;
+      border-radius: 11px;
+      padding: 10px 8px;
+      background: #f07b25;
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button.secondary { background: #1e88e5; }
+    button.dark { background: #26364a; }
+    #tip {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      max-width: min(360px, calc(100vw - 40px));
+      padding: 16px;
+      border-radius: 16px;
+      background: rgba(23, 50, 77, 0.88);
+      color: #fff;
+      font-size: 14px;
+      line-height: 1.7;
+      z-index: 10;
+    }
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: #f4f8fb;
+      z-index: 20;
+      transition: opacity .4s ease;
+    }
+    .bar { height: 8px; width: 320px; max-width: 80vw; margin-top: 14px; border-radius: 999px; overflow: hidden; background: #d8e5ef; }
+    .bar span { display: block; width: 0%; height: 100%; background: linear-gradient(90deg, #f07b25, #1e88e5); }
+    .label {
+      position: fixed;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #fff;
+      color: #17324d;
+      font-size: 12px;
+      font-weight: 700;
+      box-shadow: 0 10px 25px rgba(15, 50, 80, 0.15);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      z-index: 9;
+      white-space: nowrap;
+    }
+    body.night { background: #111827; color: #e8eef5; }
+    body.night .panel { background: rgba(22, 31, 45, 0.92); }
+    body.night .panel p { color: #b5c4d4; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="loading">
+    <div>
+      <strong>正在加载AED除颤器3D教学模型...</strong>
+      <div class="bar"><span id="progress"></span></div>
+    </div>
+  </div>
+
+  <section class="panel">
+    <h1>AED除颤器3D教学展示</h1>
+    <p>白橙医用配色，包含显示屏、开机键、电击键、电极贴片、连接导线、电池仓等核心结构。</p>
+    <div class="buttons">
+      <button id="autoRotate">自动旋转</button>
+      <button id="reset" class="secondary">视角重置</button>
+      <button id="openCase">开盖演示</button>
+      <button id="pads" class="secondary">电极片展开</button>
+      <button id="highlight">整体高亮</button>
+      <button id="theme" class="dark">明暗切换</button>
+      <a href="young-person-viewer.html" style="grid-column:1 / -1;text-align:center;text-decoration:none;color:#fff;background:#16181D;padding:8px 12px;border-radius:6px;font-size:13px;" aria-label="返回主页">← 返回主页</a>
+    </div>
+  </section>
+  <div id="tip">操作提示：拖动旋转视角，滚轮缩放，点击AED部件查看教学说明。</div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const container = document.getElementById('app');
+    const tip = document.getElementById('tip');
+    const progress = document.getElementById('progress');
+    const loading = document.getElementById('loading');
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf4f8fb);
+
+    const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
+    camera.position.set(4.7, 3.2, 6.2);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0, 0.8, 0);
+    controls.minDistance = 3.2;
+    controls.maxDistance = 9;
+    controls.maxPolarAngle = Math.PI * 0.48;
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xc8d7e4, 2.2));
+    const light = new THREE.DirectionalLight(0xffffff, 2.4);
+    light.position.set(4, 6, 4);
+    light.castShadow = true;
+    scene.add(light);
+
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(5.2, 80),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.78 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const mats = {
+      white: new THREE.MeshStandardMaterial({ color: 0xf7fafc, roughness: 0.72 }),
+      orange: new THREE.MeshStandardMaterial({ color: 0xf07b25, roughness: 0.66 }),
+      dark: new THREE.MeshStandardMaterial({ color: 0x233246, roughness: 0.58 }),
+      screen: new THREE.MeshStandardMaterial({ color: 0x102a43, roughness: 0.34, emissive: 0x071929, emissiveIntensity: 0.45 }),
+      green: new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.45, emissive: 0x0c4d26, emissiveIntensity: 0.7 }),
+      pad: new THREE.MeshStandardMaterial({ color: 0xe9f2f8, roughness: 0.82 }),
+      cable: new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.7 }),
+      highlight: new THREE.MeshStandardMaterial({ color: 0xffd34d, roughness: 0.45, emissive: 0xffa000, emissiveIntensity: 0.18 })
+    };
+
+    const aed = new THREE.Group();
+    scene.add(aed);
+    const clickable = [];
+    const labels = [];
+    let selected = null;
+    let isOpen = false;
+    let padsOpen = false;
+    let allHighlight = false;
+
+    function roundedBox(w, h, d, r) {
+      const shape = new THREE.Shape();
+      const x = -w / 2, y = -h / 2;
+      shape.moveTo(x + r, y);
+      shape.lineTo(x + w - r, y);
+      shape.quadraticCurveTo(x + w, y, x + w, y + r);
+      shape.lineTo(x + w, y + h - r);
+      shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      shape.lineTo(x + r, y + h);
+      shape.quadraticCurveTo(x, y + h, x, y + h - r);
+      shape.lineTo(x, y + r);
+      shape.quadraticCurveTo(x, y, x + r, y);
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: d, bevelEnabled: true, bevelSegments: 5, bevelSize: r * 0.35, bevelThickness: r * 0.25 });
+      geo.center();
+      return geo;
+    }
+
+    function addPart(name, mesh, info) {
+      mesh.name = name;
+      mesh.userData.info = info;
+      mesh.userData.baseMaterial = mesh.material;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      clickable.push(mesh);
+      aed.add(mesh);
+      return mesh;
+    }
+
+    const body = addPart('机身外壳', new THREE.Mesh(roundedBox(3.2, 2.3, 0.55, 0.22), mats.white), '坚固哑光塑料外壳，便携式民用急救AED标准造型。');
+    body.position.y = 1.05; body.rotation.x = -0.08;
+
+    const panel = addPart('橙色识别面板', new THREE.Mesh(roundedBox(1.15, 1.78, 0.07, 0.13), mats.orange), '醒目的白橙医用配色，便于公共场景快速识别急救设备。');
+    panel.position.set(-0.8, 1.1, 0.32); panel.rotation.x = -0.08;
+
+    const screen = addPart('显示屏', new THREE.Mesh(roundedBox(1.02, 0.46, 0.06, 0.06), mats.screen), '显示急救步骤、语音提示文字和设备状态信息。');
+    screen.position.set(0.52, 1.62, 0.36); screen.rotation.x = -0.08;
+
+    const power = addPart('开机按键', new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.08, 36), mats.green), '按下后启动AED语音引导和心律分析流程。');
+    power.position.set(0.5, 1.08, 0.39); power.rotation.x = Math.PI / 2 - 0.08;
+
+    const shock = addPart('电击按键', new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.08, 36), mats.orange), '设备确认需要除颤时，按提示完成电击操作。');
+    shock.position.set(1.08, 1.08, 0.39); shock.rotation.x = Math.PI / 2 - 0.08;
+
+    const indicator = addPart('状态指示灯', new THREE.Mesh(new THREE.SphereGeometry(0.08, 24, 12), mats.green), '绿色指示灯表示设备可用，异常时通常会出现警示提示。');
+    indicator.position.set(1.12, 1.49, 0.41);
+
+    const lid = addPart('开盖结构', new THREE.Mesh(roundedBox(3.28, 2.38, 0.12, 0.23), mats.white.clone()), '半透明开盖演示件，用于教学展示AED打开与闭合状态。');
+    lid.material.transparent = true; lid.material.opacity = 0.72;
+    lid.position.set(0, 1.07, 0.61); lid.rotation.x = -0.08;
+
+    const battery = addPart('电池仓', new THREE.Mesh(roundedBox(0.75, 0.48, 0.12, 0.06), mats.dark), 'AED电池仓，教学中用于说明设备维护和电量检查。');
+    battery.position.set(-1.05, 0.48, 0.38); battery.rotation.x = -0.08;
+
+    const leftPad = addPart('左电极贴片', new THREE.Mesh(roundedBox(0.76, 0.52, 0.04, 0.08), mats.pad), '电极贴片之一，急救时按图示粘贴在患者胸部指定位置。');
+    const rightPad = addPart('右电极贴片', new THREE.Mesh(roundedBox(0.76, 0.52, 0.04, 0.08), mats.pad), '另一片电极贴片，与AED连接后用于心律分析和除颤。');
+    leftPad.position.set(-0.7, 0.22, 1.08); rightPad.position.set(0.7, 0.22, 1.08);
+    leftPad.rotation.x = rightPad.rotation.x = -Math.PI / 2;
+
+    function cable(points) {
+      return new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 36, 0.025, 8), mats.cable);
+    }
+    addPart('连接导线A', cable([new THREE.Vector3(-0.4, 0.75, 0.42), new THREE.Vector3(-0.95, 0.45, 0.75), new THREE.Vector3(-0.7, 0.24, 1.06)]), '绝缘连接线，连接AED主机与电极贴片。');
+    addPart('连接导线B', cable([new THREE.Vector3(0.05, 0.73, 0.42), new THREE.Vector3(0.82, 0.45, 0.75), new THREE.Vector3(0.7, 0.24, 1.06)]), '绝缘连接线，教学演示中可与贴片展开动作配合展示。');
+
+    for (const [text, target] of [['显示屏', screen], ['开机键', power], ['电击键', shock], ['电极贴片', rightPad], ['电池仓', battery], ['指示灯', indicator]]) {
+      const el = document.createElement('div');
+      el.className = 'label';
+      el.textContent = text;
+      document.body.appendChild(el);
+      labels.push({ el, target });
+    }
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+
+    function pick(event) {
+      pointer.x = event.clientX / innerWidth * 2 - 1;
+      pointer.y = -(event.clientY / innerHeight) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      return raycaster.intersectObjects(clickable, false)[0]?.object;
+    }
+
+    addEventListener('click', e => {
+      if (e.target.tagName === 'BUTTON') return;
+      const obj = pick(e);
+      if (!obj) return;
+      if (selected && !allHighlight) selected.material = selected.userData.baseMaterial;
+      selected = obj;
+      obj.material = mats.highlight;
+      tip.textContent = `${obj.name}：${obj.userData.info}`;
+    });
+
+    document.getElementById('autoRotate').onclick = () => controls.autoRotate = !controls.autoRotate;
+    document.getElementById('reset').onclick = () => { camera.position.set(4.7, 3.2, 6.2); controls.target.set(0, 0.8, 0); controls.update(); };
+    document.getElementById('openCase').onclick = () => isOpen = !isOpen;
+    document.getElementById('pads').onclick = () => padsOpen = !padsOpen;
+    document.getElementById('highlight').onclick = () => { allHighlight = !allHighlight; clickable.forEach(m => m.material = allHighlight ? mats.highlight : m.userData.baseMaterial); };
+    document.getElementById('theme').onclick = () => {
+      document.body.classList.toggle('night');
+      const night = document.body.classList.contains('night');
+      scene.background.set(night ? 0x111827 : 0xf4f8fb);
+      floor.material.color.set(night ? 0x223044 : 0xffffff);
+    };
+
+    let load = 0;
+    const timer = setInterval(() => {
+      load += 20;
+      progress.style.width = `${Math.min(load, 100)}%`;
+      if (load >= 100) {
+        clearInterval(timer);
+        loading.style.opacity = 0;
+        setTimeout(() => loading.style.display = 'none', 400);
+      }
+    }, 80);
+
+    function updateLabels() {
+      const v = new THREE.Vector3();
+      labels.forEach(({ el, target }) => {
+        target.getWorldPosition(v);
+        v.y += 0.35;
+        v.project(camera);
+        el.style.left = `${(v.x * 0.5 + 0.5) * innerWidth}px`;
+        el.style.top = `${(-v.y * 0.5 + 0.5) * innerHeight}px`;
+        el.style.display = v.z < 1 ? 'block' : 'none';
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      indicator.scale.setScalar(1 + Math.sin(performance.now() * 0.004) * 0.08);
+      lid.rotation.x += ((isOpen ? -1.1 : -0.08) - lid.rotation.x) * 0.08;
+      lid.position.y += ((isOpen ? 1.75 : 1.07) - lid.position.y) * 0.08;
+      lid.position.z += ((isOpen ? 0.92 : 0.61) - lid.position.z) * 0.08;
+      leftPad.position.x += ((padsOpen ? -1.75 : -0.7) - leftPad.position.x) * 0.08;
+      rightPad.position.x += ((padsOpen ? 1.75 : 0.7) - rightPad.position.x) * 0.08;
+      leftPad.position.z += ((padsOpen ? 1.55 : 1.08) - leftPad.position.z) * 0.08;
+      rightPad.position.z += ((padsOpen ? 1.55 : 1.08) - rightPad.position.z) * 0.08;
+      updateLabels();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>

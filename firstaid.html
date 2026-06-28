@@ -1,0 +1,330 @@
+﻿<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>急救演练</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#FAFAF9;--surface:#FFF;--ink:#16181D;--mute:#6B7280;--line:#E8E8E6;
+    --critical:#E5383B;--critical-d:#BE2D30;--vital:#0E8A6F;--amber:#E5A100;
+    --sans:'Inter','PingFang SC','Noto Sans SC',system-ui,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;--r:12px;--ease:cubic-bezier(.2,0,0,1);}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    min-height:100vh;display:flex;flex-direction:column;}
+
+  /* 椤舵爮 */
+  .top{display:flex;align-items:center;gap:14px;padding:14px 22px;border-bottom:1px solid var(--line);}
+  .top h1{font-size:14px;font-weight:700;margin:0;white-space:nowrap;}
+  .surv{flex:1;height:8px;background:var(--line);border-radius:5px;overflow:hidden;min-width:80px;}
+  .surv>i{display:block;height:100%;width:100%;background:var(--vital);transition:width .4s var(--ease),background .4s;}
+  .surv-pct,.timer{font-family:var(--mono);font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums;}
+  .pause{font:inherit;font-size:12px;padding:5px 12px;border:1px solid var(--line);border-radius:7px;background:#fff;cursor:pointer;min-height:44px;}
+
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;min-height:110px;}
+  .victim{width:230px;height:104px;}
+
+  /* 鍒嗚韩閫氶亾 */
+  .crew{display:flex;gap:12px;padding:14px 22px;justify-content:center;flex-wrap:wrap;}
+  .ch{width:128px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+    padding:12px 12px 14px;cursor:pointer;transition:border-color .2s,box-shadow .2s,transform .1s;
+    font:inherit;text-align:left;color:inherit;-webkit-appearance:none;appearance:none;}
+  .ch:active{transform:scale(.98);}
+  .ch--active{border-color:var(--ink);box-shadow:0 0 0 4px rgba(22,24,29,.05);}
+  .ch__top{display:flex;align-items:center;gap:7px;}
+  .ch__glyph{width:20px;height:20px;flex:0 0 20px;color:var(--ink);}
+  .ch__name{font-size:13px;font-weight:600;}
+  .ch__role{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--mute);margin-top:5px;}
+  .ch__task{display:flex;align-items:center;gap:6px;font-size:12px;margin:9px 0 11px;height:14px;}
+  .ch__task .pip{width:7px;height:7px;border-radius:50%;background:var(--mute);}
+  .ch__task .pip--beat{background:var(--vital);animation:beat 1s var(--ease) infinite;}
+  @keyframes beat{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.7);opacity:.5;}}
+  .ch__stam{display:flex;align-items:center;gap:8px;}
+  .ch__bar{flex:1;height:5px;background:var(--line);border-radius:3px;overflow:hidden;}
+  .ch__bar>i{display:block;height:100%;background:var(--vital);transition:width .4s,background .4s;}
+  .ch--mid .ch__bar>i{background:var(--amber);} .ch--low .ch__bar>i{background:var(--critical);}
+  .ch__val{font-family:var(--mono);font-size:12px;min-width:20px;text-align:right;}
+  .ch--low .ch__val{color:var(--critical-d);}
+
+  .actions{padding:14px 22px 22px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+  .btn-a{font:inherit;font-size:14px;padding:11px 18px;border:1px solid var(--line);border-radius:8px;
+    background:#fff;cursor:pointer;transition:border-color .15s,transform .1s;min-height:44px;}
+  .btn-a:hover{border-color:var(--ink);} .btn-a:active{transform:scale(.97);}
+  .btn-a:disabled{opacity:.35;cursor:not-allowed;}
+  .btn-a.is-red,.btn-a.is-on{background:var(--critical);border-color:var(--critical);color:#fff;font-weight:500;}
+  .btn-a.is-red:hover{background:var(--critical-d);border-color:var(--critical-d);}
+
+  .ch:focus-visible,.btn-a:focus-visible,.pause:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+
+  /* 瀵煎笀鍗?*/
+  .mentor{position:fixed;right:22px;bottom:22px;width:320px;max-width:calc(100vw - 44px);
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;
+    box-shadow:0 4px 16px rgba(0,0,0,.06);opacity:0;transform:translateY(16px);pointer-events:none;
+    transition:opacity .22s var(--ease),transform .22s var(--ease);cursor:pointer;z-index:40;}
+  .mentor.is-show{opacity:1;transform:translateY(0);pointer-events:auto;}
+  .mentor__accent{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--mute);}
+  .mentor[data-type="correct"] .mentor__accent{background:var(--vital);}
+  .mentor[data-type="warn"] .mentor__accent{background:var(--critical);}
+  .mentor__inner{padding:14px 14px 14px 22px;}
+  .mentor__head{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+  .mentor__name{font-size:13px;font-weight:500;} .mentor__dot{width:6px;height:6px;border-radius:50%;background:var(--mute);margin-left:auto;}
+  .mentor[data-type="correct"] .mentor__dot{background:var(--vital);}
+  .mentor[data-type="warn"] .mentor__dot{background:var(--critical);}
+  .mentor__text{font-size:15px;line-height:1.6;min-height:1.6em;}
+  .mentor__caret{display:inline-block;width:2px;height:1em;vertical-align:-2px;background:var(--ink);margin-left:2px;animation:blink .9s steps(1) infinite;}
+  @keyframes blink{50%{opacity:0;}}
+  .mentor__progress{height:2px;background:var(--line);transform-origin:left;}
+  .mentor.is-counting .mentor__progress{animation:shrink linear forwards;animation-duration:var(--fdur,4200ms);}
+  .mentor:hover .mentor__progress{animation-play-state:paused;}
+  @keyframes shrink{to{transform:scaleX(0);}}
+
+  /* 澶嶇洏 */
+  .rv{position:fixed;inset:0;background:rgba(250,250,249,.92);display:none;align-items:center;justify-content:center;z-index:60;}
+  .rv.on{display:flex;}
+  .review{width:360px;max-width:92vw;background:var(--surface);border:1px solid var(--line);
+    border-radius:16px;overflow:hidden;box-shadow:0 10px 40px rgba(22,24,29,.08);}
+  .ecg{position:relative;height:90px;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:18px 18px;background-position:center;}
+  .ecg svg{position:absolute;inset:0;width:100%;height:100%;}
+  .ecg path{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:trace 1.7s var(--ease) .15s forwards;}
+  @keyframes trace{to{stroke-dashoffset:0;}}
+  .review__body{padding:22px;}
+  .review__head{display:flex;align-items:baseline;gap:12px;}
+  .review__grade{font-family:var(--mono);font-size:52px;font-weight:600;line-height:1;color:var(--vital);}
+  .review--fail .review__grade{color:var(--critical);}
+  .review__verdict{font-size:15px;font-weight:700;} .review__sub{font-family:var(--mono);font-size:12px;color:var(--mute);}
+  .rows{margin:18px 0 16px;}
+  .row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:13px;}
+  .row:last-child{border-bottom:1px solid var(--line);}
+  .row__bar{flex:0 0 84px;height:4px;background:var(--line);border-radius:2px;overflow:hidden;}
+  .row__bar>i{display:block;height:100%;background:var(--vital);}
+  .review--fail .row__bar>i{background:var(--critical);}
+  .row__score{font-family:var(--mono);font-size:12px;color:var(--mute);min-width:44px;text-align:right;}
+  .review__tip{font-size:13px;line-height:1.55;color:var(--mute);border-left:2px solid var(--vital);padding-left:12px;margin:0 0 20px;}
+  .review--fail .review__tip{border-color:var(--critical);}
+  .review .btn{width:100%;padding:13px;border:none;border-radius:9px;background:var(--ink);color:#fff;font:inherit;font-size:14px;font-weight:500;cursor:pointer;min-height:44px;}
+  .review .btn:hover{opacity:.88;}
+
+  /* 鍏ュ満 */
+  .intro{position:fixed;inset:0;background:var(--paper);z-index:100;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:8px;transition:opacity .4s var(--ease),transform .4s var(--ease);}
+  .intro.is-leaving{opacity:0;transform:scale(1.02);pointer-events:none;}
+  .intro__mon{position:relative;width:min(420px,82vw);height:130px;opacity:0;animation:grid .4s var(--ease) forwards;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:20px 20px;background-position:center;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);}
+  @keyframes grid{to{opacity:1;}}
+  .intro__mon svg{position:absolute;inset:0;width:100%;height:100%;}
+  .intro__mon path{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;}
+  .intro__flat{stroke:var(--mute);animation:trace2 .55s linear .1s forwards;}
+  .intro__beat{stroke:var(--vital);animation:trace2 .35s var(--ease) .58s forwards;}
+  @keyframes trace2{to{stroke-dashoffset:0;}}
+  .intro__glow{position:absolute;left:46%;top:50%;width:60px;height:60px;border-radius:50%;
+    background:radial-gradient(var(--vital),transparent 70%);transform:translate(-50%,-50%) scale(.3);opacity:0;animation:glow .55s var(--ease) .6s;}
+  @keyframes glow{0%{opacity:0;transform:translate(-50%,-50%) scale(.3);}40%{opacity:.45;}100%{opacity:0;transform:translate(-50%,-50%) scale(1.9);}}
+  .intro__title{font-size:26px;font-weight:700;letter-spacing:.04em;opacity:0;transform:translateY(8px);animation:rise .5s var(--ease) .62s forwards;}
+  .intro__cap{font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:var(--mute);text-transform:uppercase;opacity:0;animation:fade .5s var(--ease) .95s forwards;}
+  .intro__btn{margin-top:18px;padding:13px 30px;border:none;border-radius:9px;background:var(--ink);color:#fff;font:inherit;font-size:15px;font-weight:500;cursor:pointer;opacity:0;transform:translateY(8px);animation:rise .45s var(--ease) 1.25s forwards;min-height:44px;}
+  .intro__btn:hover{opacity:.88;} .intro__btn:focus-visible,.review .btn:focus-visible{outline:2px solid var(--vital);outline-offset:3px;}
+  @keyframes rise{to{opacity:1;transform:none;}} @keyframes fade{to{opacity:1;}}
+
+  /* 鍦烘櫙鑿滃崟 */
+  .menu{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--paper);z-index:90;}
+  .menu.on{display:flex;} .menu__h{font-size:18px;font-weight:700;margin:0 0 6px;}
+  .menu__card{width:min(420px,86vw);text-align:left;background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-height:44px;}
+  .menu__card:hover{border-color:var(--ink);} .menu__card:focus-visible{outline:2px solid var(--vital);outline-offset:2px;}
+  .menu__card b{font-size:15px;} .menu__card span{font-size:12px;color:var(--mute);}
+
+  /* 鐑х儷浼ゅ満鏅?*/
+  .burn{width:min(900px,94vw);display:grid;grid-template-columns:minmax(260px,1fr) 320px;gap:18px;align-items:stretch;}
+  .burn__sim,.burn__panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;}  .burn__sim{position:relative;min-height:320px;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+  .burn__canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none;}
+  .burn__canvas:active{cursor:grabbing;}
+  .burn__3d-note{position:absolute;left:16px;top:14px;font-family:var(--mono);font-size:11px;color:var(--mute);background:rgba(255,255,255,.72);border:1px solid var(--line);border-radius:999px;padding:5px 9px;z-index:2;}
+  .burn__arm{position:relative;width:min(500px,86vw);height:180px;transform:rotate(-6deg);transform-origin:18% 50%;animation:armRest 3.8s ease-in-out infinite;}
+  .burn__upper,.burn__forearm,.burn__hand{position:absolute;background:linear-gradient(180deg,#f8d7c1 0%,#efbd9b 55%,#d99673 100%);box-shadow:inset 0 -10px 22px rgba(120,63,35,.14),inset 0 8px 18px rgba(255,255,255,.28);}
+  .burn__upper{left:6px;top:61px;width:190px;height:72px;border-radius:52px 42px 40px 54px;transform:rotate(-3deg);}
+  .burn__elbow{position:absolute;left:174px;top:57px;width:78px;height:78px;border-radius:50%;background:radial-gradient(circle at 45% 38%,#f7d2b8 0 46%,#dfa27d 47% 72%,#c98764 73%);box-shadow:inset -7px -9px 16px rgba(120,63,35,.13);}
+  .burn__elbow:after{content:"";position:absolute;left:23px;top:34px;width:34px;height:16px;border-radius:50%;border-top:2px solid rgba(125,73,45,.2);transform:rotate(-12deg);}
+  .burn__forearm{left:232px;top:69px;width:178px;height:50px;border-radius:30px 24px 22px 30px;transform:rotate(3deg);}
+  .burn__hand{left:397px;top:62px;width:78px;height:58px;border-radius:28px 34px 30px 24px;transform:rotate(3deg);}
+  .burn__hand:before{content:"";position:absolute;right:-18px;top:8px;width:44px;height:13px;border-radius:12px;background:#efbd9b;box-shadow:0 12px 0 #efbd9b,0 24px 0 #eab28d,0 36px 0 #d99b77;}
+  .burn__hand:after{content:"";position:absolute;left:12px;top:-15px;width:20px;height:42px;border-radius:16px;background:#efbd9b;transform:rotate(-32deg);box-shadow:inset 0 -6px 10px rgba(120,63,35,.12);}
+  .burn__skin{position:absolute;left:42px;right:42px;top:52px;height:88px;border-radius:62px;background:radial-gradient(circle at 18% 38%,rgba(255,255,255,.28),transparent 18%),radial-gradient(circle at 62% 42%,rgba(139,82,50,.1) 0 1px,transparent 2px),radial-gradient(circle at 72% 58%,rgba(139,82,50,.08) 0 1px,transparent 2px);pointer-events:none;mix-blend-mode:multiply;opacity:.68;}
+  @keyframes armRest{50%{transform:rotate(-4deg) translateY(2px)}}
+  .burn__wound{position:absolute;left:59%;top:43%;width:80px;height:38px;border-radius:46% 54% 50% 50%;background:radial-gradient(circle at 45% 45%,#ff8b5f 0 22%,#e5383b 23% 52%,#8d1f22 53% 72%,transparent 73%);filter:saturate(1.2);animation:pulseBurn 1.1s ease-in-out infinite;}
+  @keyframes pulseBurn{50%{transform:scale(1.08);filter:saturate(1.55);}}
+  .burn__steam{position:absolute;left:48%;top:18%;width:90px;height:90px;opacity:.55;}
+  .burn__steam i{position:absolute;bottom:0;width:12px;height:54px;border-left:2px solid var(--mute);border-radius:50%;animation:steam 1.8s ease-in-out infinite;}
+  .burn__steam i:nth-child(2){left:30px;animation-delay:.25s}.burn__steam i:nth-child(3){left:60px;animation-delay:.5s}
+  @keyframes steam{0%{transform:translateY(20px) scale(.8);opacity:0}35%{opacity:.6}100%{transform:translateY(-42px) scale(1.2);opacity:0}}
+  .burn__water{position:absolute;left:10%;right:10%;top:-80px;height:190px;display:none;pointer-events:none;background:repeating-linear-gradient(100deg,transparent 0 18px,rgba(14,138,111,.18) 19px 23px);animation:waterFlow .55s linear infinite;}
+  .burn.is-rinse .burn__water{display:block}.burn.is-rinse .burn__wound{animation:coolBurn .9s ease forwards}.burn.is-rinse .burn__steam{display:none}
+  @keyframes waterFlow{to{background-position:0 36px}} @keyframes coolBurn{to{background:radial-gradient(circle,#ffb39b 0 30%,#e97b68 31% 58%,transparent 59%);filter:saturate(.85)}}
+  .burn__cloth{position:absolute;left:54%;top:33%;width:118px;height:58px;border-radius:12px;background:repeating-linear-gradient(45deg,#fff 0 10px,#e8e8e6 11px 20px);border:1px solid #ddd;opacity:0;transform:translateY(-10px) rotate(-5deg);}
+  .burn.is-cloth .burn__cloth{opacity:.88;animation:clothOff .9s ease forwards}@keyframes clothOff{to{transform:translate(106px,-48px) rotate(14deg);opacity:.18}}
+  .burn__basin{position:absolute;left:21%;right:21%;bottom:22px;height:70px;border:2px solid rgba(14,138,111,.45);border-top:none;border-radius:0 0 80px 80px;opacity:0;}
+  .burn.is-soak .burn__basin{opacity:1;animation:soakRise .7s ease forwards}.burn.is-soak .burn__basin:before{content:"";position:absolute;left:8%;right:8%;top:8px;height:18px;border-radius:50%;background:rgba(14,138,111,.22);animation:ripple 1s ease-in-out infinite;}
+  @keyframes soakRise{from{transform:translateY(26px)}}@keyframes ripple{50%{transform:scaleX(1.08);opacity:.55}}
+  .burn__cover{position:absolute;left:56%;top:39%;width:102px;height:50px;border:2px solid rgba(255,255,255,.86);border-radius:12px;background:linear-gradient(135deg,rgba(255,255,255,.65),rgba(255,255,255,.18));box-shadow:0 0 12px rgba(255,255,255,.8);opacity:0;}
+  .burn.is-cover .burn__cover{animation:coverDrop .55s ease forwards}@keyframes coverDrop{from{transform:translateY(-44px) scale(1.2);opacity:0}to{opacity:1}}
+  .burn__ambulance{position:absolute;right:-130px;bottom:26px;font-family:var(--mono);font-size:42px;letter-spacing:-8px;color:var(--critical);opacity:0;}
+  .burn.is-send .burn__ambulance{animation:driveIn .9s ease forwards}@keyframes driveIn{to{right:30px;opacity:1}}
+  .burn__meta{font-size:13px;line-height:1.65;color:var(--mute);}.burn__meta b{color:var(--ink)}
+  .burn__hud{display:grid;gap:8px;margin:12px 0}.burn__bar{height:10px;background:var(--line);border-radius:999px;overflow:hidden}.burn__bar>i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--vital),var(--amber),var(--critical));transition:width .25s}.burn__score{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;color:var(--mute)}.burn__event{font-size:12px;line-height:1.45;color:var(--critical);background:rgba(229,56,59,.08);border:1px solid rgba(229,56,59,.2);border-radius:8px;padding:7px 9px;display:none}.burn__event.on{display:block;animation:eventShake .3s var(--ease)}.burn__combo{color:var(--critical);font-weight:700;animation:comboPop .35s var(--ease)}@keyframes comboPop{50%{transform:scale(1.08)}}@keyframes eventShake{35%{transform:translateX(-3px)}70%{transform:translateX(3px)}}
+  .burn__steps{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-top:14px}.burn__step{font-family:var(--mono);font-size:12px;text-align:center;padding:7px 0;border:1px solid var(--line);border-radius:8px;color:var(--mute)}.burn__step.done{background:rgba(14,138,111,.08);border-color:var(--vital);color:var(--vital);}
+  @media (max-width:760px){.burn{grid-template-columns:1fr}.burn__panel{order:-1}.burn__sim{min-height:280px}}
+
+  /* 绉诲姩绔?*/
+  @media (max-width:560px){
+    .top{flex-wrap:wrap;gap:8px 12px;padding:12px 16px;}
+    .top h1{flex:1 0 100%;}
+    .crew{gap:8px;padding:12px;}
+    .ch{width:calc(50% - 4px);}
+    .actions{padding:12px 16px 16px;}
+    .btn-a{flex:1 1 calc(50% - 4px);}
+    .mentor{left:12px;right:12px;width:auto;bottom:12px;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .mentor__caret,.ch__task .pip--beat,.intro__glow{animation:none;}
+    .ecg path,.intro__flat,.intro__beat{animation:none;stroke-dashoffset:0;}
+    .intro__mon,.intro__title,.intro__cap,.intro__btn{animation:none;opacity:1;transform:none;}}
+</style></head>
+<body>
+  <header class="top">
+    <h1>急救演练</h1>
+    <div class="surv" id="survWrap" role="progressbar" aria-label="状态" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i id="survBar"></i></div>
+    <span class="surv-pct" id="survPct">100%</span>
+    <span class="timer" id="timer">00:00</span>
+    <button class="pause" id="soundBtn" aria-pressed="true" aria-label="声音开关">声音 ♫</button>
+    <button class="pause" id="pauseBtn">暂停</button>
+  </header>
+
+  <div id="sceneRoot"></div>
+
+  <aside class="mentor" id="mentorCard" data-type="hint" aria-live="polite">
+    <span class="mentor__accent"></span>
+    <div class="mentor__inner"><div class="mentor__head">
+      <svg width="26" height="26" aria-hidden="true" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" stroke="#16181D" stroke-width="1.5"/><path d="M14 8.5v11M8.5 14h11" stroke="#E5383B" stroke-width="2" stroke-linecap="round"/></svg>
+      <span class="mentor__name">急救导师</span><span class="mentor__dot"></span></div>
+      <div class="mentor__text" id="mentorText"></div></div>
+    <div class="mentor__progress"></div>
+  </aside>
+
+  <div class="rv" id="review" role="dialog" aria-modal="true" aria-label="急救复盘"><div class="review" id="reviewCard">
+    <div class="ecg"><svg id="ecgSvg" viewBox="0 0 360 96" preserveAspectRatio="none"></svg></div>
+    <div class="review__body" id="reviewBody"></div>
+  </div></div>
+
+  <div class="intro" id="intro">
+    <div class="intro__mon"><div class="intro__glow"></div>
+      <svg viewBox="0 0 420 130" preserveAspectRatio="none">
+        <path class="intro__flat" d="M0,65 H420" pathLength="1"/>
+        <path class="intro__beat" d="M168,65 l10,0 5,-38 6,62 6,-32 7,8 l10,0" pathLength="1"/></svg></div>
+    <h1 class="intro__title">急救演练</h1>
+    <p class="intro__cap">心律建立 · 准备抢救</p>
+    <button class="intro__btn" id="start">开始抢救</button>
+  </div>
+
+  <div class="menu" id="menu" hidden>
+    <h2 class="menu__h">选择演练场景</h2>
+    <button class="menu__card" data-scene="cpr"><b>心脏骤停 · 团队 CPR</b><span>多救援者协作，维持高质量按压并尽快 AED 除颤</span></button>
+    <button class="menu__card" data-scene="heimlich"><b>异物梗阻 · 海姆立克</b><span>判断轻重度，拍背与腹部冲击交替解除梗阻</span></button>
+    <button class="menu__card" data-scene="burn"><b>烧烫伤 · 游客现实演练</b><span>稳定完成判断、冲洗、脱离热源、覆盖和送医，避免冰敷偏方等误区</span></button>
+  </div>
+
+<script src="shared.js"></script>
+<script src="heimlich-core.js"></script>
+<script src="scene-cpr.js"></script>
+<script src="scene-heimlich.js"></script>
+<script type="module">
+const GameSound=window.Sound||{on:true,unlock(){},ok(){},bad(){}};
+const $=id=>document.getElementById(id);
+const mentor=$('mentorCard'),mentorText=$('mentorText');
+function tip(text,type='hint'){mentor.dataset.type=type;mentor.classList.add('is-show','is-counting');mentorText.textContent=text;clearTimeout(tip.t);tip.t=setTimeout(()=>mentor.classList.remove('is-show','is-counting'),4300);}
+mentor.onclick=()=>mentor.classList.remove('is-show','is-counting');
+function ecgPath(ok){return ok?'M0,52 H80 l8,-24 10,52 9,-28 10,0 H360':'M0,52 H130 l18,0 18,0 H360';}
+function showReview(title,grade,rows,msg,ok=true){const card=$('reviewCard'),svg=$('ecgSvg'),body=$('reviewBody');card.className='review '+(ok?'':'review--fail');svg.innerHTML=`<path d="${ecgPath(ok)}" pathLength="1" stroke="${ok?'#0E8A6F':'#E5383B'}"/>`;body.innerHTML=`<div class="review__head"><div class="review__grade">${grade}</div><div><div class="review__verdict">${title}</div><div class="review__sub">急救复盘</div></div></div><div class="rows">${rows.map(r=>`<div class="row"><span>${r[0]}</span><span class="row__bar"><i style="width:${r[1]}%"></i></span><span class="row__score">${r[1]}</span></div>`).join('')}</div><p class="review__tip">${msg}</p><button class="btn" onclick="location.reload()">再来一次</button>`;$('review').classList.add('on');}
+const Burn3D={ready:false,parts:{},rotX:.15,rotY:0,zoom:5.2,drag:false,viewChecked:false,async init(canvas){try{const THREE=await import('https://unpkg.com/three@0.160.0/build/three.module.js');this.THREE=THREE;this.ready=false;this.viewChecked=false;this.rotX=.15;this.rotY=0;this.zoom=5.2;const scene=new THREE.Scene();scene.background=new THREE.Color('#eef3f7');scene.fog=new THREE.Fog('#eef3f7',8,18);const camera=new THREE.PerspectiveCamera(45,1,.1,100);const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;scene.add(new THREE.HemisphereLight('#ffffff','#b9c4d0',2.2));const dl=new THREE.DirectionalLight('#ffffff',2.3);dl.position.set(4,6,4);dl.castShadow=true;scene.add(dl);const skin=new THREE.MeshStandardMaterial({color:'#efbd9b',roughness:.72,metalness:0});const joint=new THREE.MeshStandardMaterial({color:'#dfa27d',roughness:.78});const woundMat=new THREE.MeshStandardMaterial({color:'#d94a38',roughness:.82});const scabMat=new THREE.MeshStandardMaterial({color:'#7b2b22',roughness:.9});const coverMat=new THREE.MeshStandardMaterial({color:'#ffffff',transparent:true,opacity:.58,roughness:.25});const waterMat=new THREE.MeshStandardMaterial({color:'#5cc7df',transparent:true,opacity:.42,roughness:.18});const root=new THREE.Group();root.rotation.z=-.18;scene.add(root);const cyl=(r1,r2,len,mat)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,len,32,1),mat);m.rotation.z=Math.PI/2;m.castShadow=true;m.receiveShadow=true;return m};const upper=cyl(.35,.42,1.65,skin);upper.position.set(-.95,0,0);root.add(upper);const elbow=new THREE.Mesh(new THREE.SphereGeometry(.42,32,18),joint);elbow.position.set(-.08,0,0);elbow.castShadow=true;root.add(elbow);const forePivot=new THREE.Group();forePivot.position.set(.12,0,0);forePivot.rotation.z=-.22;root.add(forePivot);const fore=cyl(.24,.31,1.75,skin);fore.position.set(.86,0,0);forePivot.add(fore);const wrist=new THREE.Mesh(new THREE.SphereGeometry(.25,24,14),joint);wrist.position.set(1.78,0,0);forePivot.add(wrist);const hand=new THREE.Mesh(new THREE.BoxGeometry(.58,.48,.22),skin);hand.position.set(2.2,0,0);hand.rotation.z=.05;forePivot.add(hand);for(let i=0;i<5;i++){const f=new THREE.Mesh(new THREE.CapsuleGeometry(.045,.36,8,16),skin);f.rotation.z=Math.PI/2;f.position.set(2.5,.2-i*.1,0);forePivot.add(f)}const wound=new THREE.Group();wound.position.set(.86,.26,.31);forePivot.add(wound);const woundBase=new THREE.Mesh(new THREE.SphereGeometry(.22,32,12),woundMat);woundBase.scale.set(1.55,.5,.12);wound.add(woundBase);const scab=new THREE.Mesh(new THREE.SphereGeometry(.09,16,8),scabMat);scab.position.set(.03,.02,.03);scab.scale.set(1.8,.55,.12);wound.add(scab);const ring=new THREE.Mesh(new THREE.TorusGeometry(.3,.012,8,40),new THREE.MeshBasicMaterial({color:'#e5383b'}));ring.scale.set(1.35,.65,1);wound.add(ring);const cloth=new THREE.Mesh(new THREE.BoxGeometry(.72,.42,.025),coverMat);cloth.position.set(.86,.28,.42);cloth.visible=false;forePivot.add(cloth);const water=new THREE.Group();water.visible=false;scene.add(water);for(let i=0;i<12;i++){const drop=new THREE.Mesh(new THREE.CylinderGeometry(.01,.018,1.3,8),waterMat);drop.position.set(-.2+i*.08,1.45,1.1);drop.rotation.z=.35;water.add(drop)}const floor=new THREE.Mesh(new THREE.CircleGeometry(3.7,64),new THREE.MeshStandardMaterial({color:'#d7dee6'}));floor.rotation.x=-Math.PI/2;floor.position.y=-1;floor.receiveShadow=true;scene.add(floor);this.parts={renderer,scene,camera,root,forePivot,wound,woundBase,ring,cloth,water,canvas,hand};this.ready=true;const setCam=()=>{camera.position.set(Math.sin(this.rotY)*this.zoom,1.4+this.rotX*2.2,Math.cos(this.rotY)*this.zoom);camera.lookAt(.35,.2,0)};this.setCam=setCam;const resize=()=>{const r=canvas.getBoundingClientRect();renderer.setSize(r.width,r.height,false);camera.aspect=r.width/r.height;camera.updateProjectionMatrix()};new ResizeObserver(resize).observe(canvas);resize();let sx=0,sy=0;const down=e=>{this.drag=true;sx=(e.touches?e.touches[0].clientX:e.clientX);sy=(e.touches?e.touches[0].clientY:e.clientY);e.preventDefault()};const move=e=>{if(!this.drag)return;const x=(e.touches?e.touches[0].clientX:e.clientX),y=(e.touches?e.touches[0].clientY:e.clientY);this.rotY+=(x-sx)*.01;this.rotX=Math.max(-.75,Math.min(.75,this.rotX+(y-sy)*.006));sx=x;sy=y;e.preventDefault()};const up=()=>this.drag=false;canvas.addEventListener('pointerdown',down);window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);canvas.addEventListener('touchstart',down,{passive:false});window.addEventListener('touchmove',move,{passive:false});window.addEventListener('touchend',up);canvas.addEventListener('wheel',e=>{this.zoom=Math.max(3.3,Math.min(7.2,this.zoom+e.deltaY*.004));e.preventDefault()},{passive:false});const tick=t=>{if(!this.ready)return;setCam();forePivot.rotation.z=-.22+Math.sin(t*.00125)*.05;hand.rotation.z=.05+Math.sin(t*.00125)*.03;ring.rotation.z=t*.002;renderer.render(scene,camera);requestAnimationFrame(tick)};requestAnimationFrame(tick);canvas.closest('.burn__sim').querySelector('.burn__arm').style.display='none';}catch(e){console.warn('3D arm fallback',e);}} ,isWoundView(){const a=((this.rotY%(Math.PI*2))+Math.PI*2)%(Math.PI*2);return a>.55&&a<2.65;} ,checkView(){if(!this.ready)return false;this.viewChecked=this.isWoundView();return this.viewChecked;} ,step(act){if(!this.ready)return;const p=this.parts;if(act==='rinse')p.water.visible=true;if(act==='remove')p.root.rotation.z=-.08;if(act==='soak')p.root.position.y=-.18;if(act==='cover')p.cloth.visible=true;if(act==='send'){p.root.rotation.z=.04;p.root.position.x=-.2;}if(act==='ice')p.woundBase.material.color.set('#9ec9ff');if(act==='paste')p.woundBase.material.color.set('#f2ead2');if(act==='blister')p.ring.material.color.set('#be2d30');}};
+const BurnPractice={
+  steps:['判断','冲洗','脱离','覆盖','送医'],
+  cases:[
+    {name:'开水泼溅',desc:'游客前臂被开水烫到，皮肤发红、疼痛明显，没有大片破皮。',severity:'浅二度风险',limit:70},
+    {name:'热油飞溅',desc:'热油溅到前臂，局部红肿并出现小水疱，旁人建议涂牙膏。',severity:'水疱烫伤',limit:75},
+    {name:'明火燎伤',desc:'袖口被明火燎到，衣物仍发热，但没有粘连皮肤。',severity:'需要尽快降温',limit:65}
+  ],
+  order:['assess','rinse','remove','cover','send'],
+  labels:{assess:'判断伤情',rinse:'流动清水冲洗',remove:'脱离热源/松解衣物',cover:'干净敷料覆盖',send:'必要时送医'},
+  bad:{ice:'不要冰敷，低温可能加重组织损伤。',paste:'不要涂牙膏、酱油、药粉或偏方，会污染创面。',blister:'不要挑破水疱，它是创面的天然保护层。'},
+  done:[],wrong:0,score:0,combo:0,heat:100,started:0,limit:70,timer:null,
+  start(){
+    clearInterval(this.timer);
+    this.case=this.cases[Math.floor(Math.random()*this.cases.length)];
+    this.done=[];this.wrong=0;this.score=0;this.combo=0;this.heat=100;this.limit=this.case.limit;this.started=Date.now();
+    $('timer').textContent='烧烫伤';
+    $('survWrap').setAttribute('aria-label','处理稳定度');
+    $('sceneRoot').innerHTML=`<main class="stage"><section class="burn" id="burnBox"><div class="burn__sim"><canvas class="burn__canvas" id="burnCanvas" aria-label="3D 烫伤手臂演示"></canvas><div class="burn__3d-note">${this.case.name} · 拖动可观察，不再卡视角</div><div class="burn__water"></div><div class="burn__arm"><div class="burn__upper"></div><div class="burn__elbow"></div><div class="burn__forearm"></div><div class="burn__hand"></div><div class="burn__skin"></div><div class="burn__wound"></div><div class="burn__cloth"></div><div class="burn__cover"></div></div><div class="burn__steam"><i></i><i></i><i></i></div><div class="burn__basin"></div><div class="burn__ambulance">120</div></div><div class="burn__panel"><div class="burn__meta"><b>游客情况：</b>${this.case.desc}<br><b>伤情判断：</b>${this.case.severity}<br><b>规则：</b>按 5 步正确流程完成。3D 手臂只做观察和反馈，不会因为视角没转准而误判。</div><div class="burn__hud"><div class="burn__bar"><i id="burnHeat"></i></div><div class="burn__score"><span id="burnTime">剩余 ${this.limit}s</span><span id="burnScore">得分 0</span><span id="burnCombo">连击 x0</span></div><div class="burn__event" id="burnEvent"></div></div><div class="burn__steps" id="burnSteps">${this.steps.map(s=>`<span class="burn__step">${s}</span>`).join('')}</div></div></section></main><div class="actions"><button class="btn-a is-on" data-burn-act="assess">1 判断：红肿 / 水疱 / 衣物粘连</button><button class="btn-a" data-burn-act="rinse">2 冲洗：常温流动清水</button><button class="btn-a" data-burn-act="remove">3 脱离：离开热源，松解衣物</button><button class="btn-a" data-burn-act="cover">4 覆盖：干净敷料保护</button><button class="btn-a is-red" data-burn-act="send">5 送医：严重或特殊人群</button><button class="btn-a" data-burn-act="ice">错误：冰敷</button><button class="btn-a" data-burn-act="paste">错误：涂牙膏/偏方</button><button class="btn-a" data-burn-act="blister">错误：挑破水疱</button></div>`;
+    document.querySelectorAll('[data-burn-act]').forEach(b=>b.onclick=()=>this.act(b.dataset.burnAct));
+    Burn3D.init($('burnCanvas'));
+    this.paint();
+    this.timer=setInterval(()=>this.tick(),500);
+    tip('新版烧烫伤演练：判断、冲洗、脱离热源、覆盖、送医。3D 只做演示，不再因视角误判。');
+  },
+  tick(){
+    const elapsed=(Date.now()-this.started)/1000;
+    this.heat=Math.max(0,100-elapsed*(100/this.limit)-this.wrong*8+this.done.length*3);
+    this.paint();
+    if(this.heat<=0){clearInterval(this.timer);tip('处理超时，进入复盘。','warn');setTimeout(()=>this.review(true),500);}
+  },
+  paint(){
+    const left=Math.max(0,Math.ceil(this.limit-(Date.now()-this.started)/1000));
+    $('survPct').textContent=Math.round(this.heat)+'%';
+    $('survBar').style.width=this.heat+'%';
+    $('survBar').style.background=this.heat<35?'var(--critical)':this.heat<65?'var(--amber)':'var(--vital)';
+    if($('burnHeat'))$('burnHeat').style.width=this.heat+'%';
+    if($('burnTime'))$('burnTime').textContent='剩余 '+left+'s';
+    if($('burnScore'))$('burnScore').textContent='得分 '+this.score;
+    if($('burnCombo')){$('burnCombo').textContent='连击 x'+this.combo;$('burnCombo').className=this.combo>=2?'burn__combo':'';}
+    if($('burnEvent')){$('burnEvent').textContent=this.wrong?'已出现错误处理，继续按正确流程可挽回分数。':'';$('burnEvent').className=this.wrong?'burn__event on':'burn__event';}
+  },
+  act(act){
+    if(this.heat<=0)return;
+    Burn3D.step(act);
+    if(this.bad[act]){this.wrong++;this.combo=0;this.score=Math.max(0,this.score-10);this.heat=Math.max(0,this.heat-10);tip(this.bad[act],'warn');GameSound.bad();this.paint();return;}
+    const need=this.order[this.done.length];
+    if(act!==need){this.wrong++;this.combo=0;this.score=Math.max(0,this.score-6);this.heat=Math.max(0,this.heat-6);tip(`顺序不对，现在应该做：${this.labels[need]}。`,'warn');GameSound.bad();this.paint();return;}
+    this.done.push(act);this.combo++;this.score+=16+this.combo*4;
+    const cls={rinse:'is-rinse',remove:'is-cloth',cover:'is-cover',send:'is-send'}[act];
+    if(cls)$('burnBox').classList.add(cls);
+    [...$('burnSteps').children][this.done.length-1].classList.add('done');
+    const ok={assess:'判断完成：先看严重度，不急着乱涂。',rinse:'冲洗正确：用常温流动清水，不用冰。',remove:'脱离热源正确：粘住的衣物不要硬扯。',cover:'覆盖正确：保护创面，减少污染。',send:'送医判断完成：严重、大面积、特殊部位、儿童或老人应及时就医。'}[act];
+    tip(this.combo>=3?`${ok} 连击 x${this.combo}`:ok,'correct');
+    GameSound.ok();this.paint();
+    if(act==='send'){clearInterval(this.timer);setTimeout(()=>this.review(false),700);}
+  },
+  review(failed){
+    clearInterval(this.timer);
+    const time=Math.round((Date.now()-this.started)/1000);
+    const flow=this.done.length===5?40:this.done.length*8;
+    const safe=Math.max(0,30-this.wrong*10);
+    const speed=Math.max(0,20-Math.max(0,time-35));
+    const combo=Math.min(10,this.combo*2);
+    const total=Math.max(0,Math.min(100,flow+safe+speed+combo-(failed?15:0)));
+    const grade=total>=90?'S':total>=75?'A':total>=60?'B':'C';
+    showReview(failed?'烧烫伤处理超时':'烧烫伤演练完成',grade,[['流程完整',flow],['避开禁忌',safe],['处理速度',speed],['连续正确',combo]],this.wrong?'复盘重点：不冰敷、不涂偏方、不挑破水疱；按“判断-冲洗-脱离-覆盖-送医”走。':'流程很稳。真实场景中应使用流动清水持续冲洗 10-20 分钟，再覆盖保护，必要时就医。',total>=60&&!failed);
+  }
+};const BaseHost=window.SceneHost;
+const HostController={start(){$('menu').hidden=false;$('menu').classList.add('on');document.querySelectorAll('.menu__card').forEach(b=>b.onclick=()=>this.pick(b.dataset.scene));},pick(scene){$('menu').classList.remove('on');$('menu').hidden=true;if(scene==='burn')BurnPractice.start();else if(BaseHost&&BaseHost.pick)BaseHost.pick(scene);else{tip(scene==='cpr'?'CPR script is missing. Please check scene-cpr.js.':'Heimlich script is missing. Please check scene-heimlich.js.','warn');this.start();}}};
+function boot(){ $('start').onclick=()=>{
+  GameSound.unlock();
+  const intro=$('intro'); intro.classList.add('is-leaving');
+  setTimeout(()=>{intro.style.display='none'; HostController.start();},420);
+}; $('start').focus(); }
+if (typeof document !== 'undefined' && !window.__TEST__) boot();
+</script>
+</body></html>
+
+
+
+
+
+
+

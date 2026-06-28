@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  background: linear-gradient(160deg, #E0F2FE 0%, #FEF3C7 100%);
+  min-height: 100vh;
+  user-select: none;
+  -webkit-user-select: none;
+  color: #1F2937;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+@layer components {
+  /* 主按钮 - 立体游戏风 */
+  .btn-primary {
+    @apply px-6 py-3 bg-primary text-white rounded-2xl shadow-game font-bold
+           active:translate-y-1 active:shadow-game-sm transition-all;
+  }
+  .btn-life {
+    @apply px-6 py-3 bg-life text-white rounded-2xl shadow-game font-bold
+           active:translate-y-1 active:shadow-game-sm transition-all;
+  }
+  .btn-alert {
+    @apply px-6 py-3 bg-alert text-white rounded-2xl shadow-game font-bold
+           active:translate-y-1 active:shadow-game-sm transition-all;
+  }
+
+  /* 卡片 */
+  .card {
+    @apply bg-white rounded-3xl shadow-game p-6;
+  }
+
+  /* HUD 状态栏胶囊 */
+  .hud-pill {
+    @apply inline-flex items-center gap-1.5 px-3 h-9 rounded-full
+           bg-white shadow-pill font-bold text-sm;
+  }
+}
+
+/* 通用工具类：用 SVG 滤镜抠掉纯白外底（依赖 <ChromaKeyDefs /> 提供的 #chroma-key），
+   阈值收紧到 ≥99% 亮度才被抠，避免误伤人物身上的白衣/白帽/皮肤。 */
+.chroma-key {
+  filter: url(#chroma-key) drop-shadow(0 4px 6px rgba(0, 0, 0, 0.15));
+}

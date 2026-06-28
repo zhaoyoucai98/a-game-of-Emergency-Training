@@ -1,0 +1,6 @@
+.trae/
+.vscode/
+node_modules/
+teching.project/node_modules/
+teching.project/.vite/
+*.zip
