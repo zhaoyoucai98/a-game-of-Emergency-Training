@@ -1,0 +1,205 @@
+{
+  "name": "lightweight_young_male_character",
+  "version": "1.0.0",
+  "type": "procedural_threejs_character",
+  "style": "写实简约青年人物",
+  "target": {
+    "platform": ["Three.js", "WebGL", "移动端网页", "小程序网页"],
+    "polygonLimit": 15000,
+    "formatSuggestion": "GLB/GLTF",
+    "textureSize": "2048px以内",
+    "origin": "模型原点居中，脚底贴合地面",
+    "frontDirection": "+Z"
+  },
+  "character": {
+    "gender": "male",
+    "ageRange": "20-28",
+    "appearance": "普通青年男性，五官干净端正，神态自然放松",
+    "pose": "自然站立，身体直立，双臂向外自然放置，平视前方",
+    "clothing": ["简约卫衣", "基础长裤", "普通运动鞋"]
+  },
+  "materials": {
+    "skin": {
+      "color": "#f0bd94",
+      "roughness": 0.62,
+      "metalness": 0
+    },
+    "hair": {
+      "color": "#25211d",
+      "roughness": 0.78,
+      "metalness": 0
+    },
+    "hoodie": {
+      "color": "#3f6fa5",
+      "roughness": 0.74,
+      "metalness": 0
+    },
+    "pants": {
+      "color": "#263447",
+      "roughness": 0.76,
+      "metalness": 0
+    },
+    "shoes": {
+      "color": "#f8fafc",
+      "roughness": 0.68,
+      "metalness": 0
+    },
+    "sole": {
+      "color": "#1f2937",
+      "roughness": 0.7,
+      "metalness": 0
+    },
+    "eye": {
+      "color": "#111827",
+      "roughness": 0.45,
+      "metalness": 0
+    },
+    "mouth": {
+      "color": "#a05a4f",
+      "roughness": 0.7,
+      "metalness": 0
+    }
+  },
+  "parts": [
+    {
+      "name": "left_leg",
+      "geometry": "CapsuleGeometry",
+      "material": "pants",
+      "position": [-0.13, 0.53, 0],
+      "scale": [1, 1, 1],
+      "rotation": [0.03, 0, -0.03]
+    },
+    {
+      "name": "right_leg",
+      "geometry": "CapsuleGeometry",
+      "material": "pants",
+      "position": [0.13, 0.53, 0],
+      "scale": [1, 1, 1],
+      "rotation": [0.03, 0, 0.03]
+    },
+    {
+      "name": "left_shoe",
+      "geometry": "BoxGeometry",
+      "material": "shoes",
+      "position": [-0.13, 0.07, 0.05],
+      "scale": [1, 1, 1],
+      "rotation": [0, 0.05, 0]
+    },
+    {
+      "name": "right_shoe",
+      "geometry": "BoxGeometry",
+      "material": "shoes",
+      "position": [0.13, 0.07, 0.05],
+      "scale": [1, 1, 1],
+      "rotation": [0, -0.05, 0]
+    },
+    {
+      "name": "hoodie_body",
+      "geometry": "CapsuleGeometry",
+      "material": "hoodie",
+      "position": [0, 1.16, 0],
+      "scale": [1.03, 1, 0.82],
+      "rotation": [0, 0, 0]
+    },
+    {
+      "name": "neck",
+      "geometry": "CylinderGeometry",
+      "material": "skin",
+      "position": [0, 1.58, 0],
+      "scale": [1, 1, 1],
+      "rotation": [0, 0, 0]
+    },
+    {
+      "name": "left_arm",
+      "geometry": "CapsuleGeometry",
+      "material": "hoodie",
+      "position": [-0.5, 1.12, 0],
+      "scale": [1, 1, 1],
+      "rotation": [0.05, 0, -0.28]
+    },
+    {
+      "name": "right_arm",
+      "geometry": "CapsuleGeometry",
+      "material": "hoodie",
+      "position": [0.5, 1.12, 0],
+      "scale": [1, 1, 1],
+      "rotation": [0.05, 0, 0.28]
+    },
+    {
+      "name": "left_hand",
+      "geometry": "SphereGeometry",
+      "material": "skin",
+      "position": [-0.66, 0.8, 0.02],
+      "scale": [1, 1, 1],
+      "rotation": [0, 0, 0]
+    },
+    {
+      "name": "right_hand",
+      "geometry": "SphereGeometry",
+      "material": "skin",
+      "position": [0.66, 0.8, 0.02],
+      "scale": [1, 1, 1],
+      "rotation": [0, 0, 0]
+    },
+    {
+      "name": "head",
+      "geometry": "SphereGeometry",
+      "material": "skin",
+      "position": [0, 1.88, 0],
+      "scale": [0.9, 1.06, 0.86],
+      "rotation": [0, 0, 0]
+    },
+    {
+      "name": "hair",
+      "geometry": "SphereGeometry",
+      "material": "hair",
+      "position": [0, 1.98, -0.005],
+      "scale": [0.96, 0.78, 0.9],
+      "rotation": [0, 0, 0]
+    },
+    {
+      "name": "left_eye",
+      "geometry": "SphereGeometry",
+      "material": "eye",
+      "position": [-0.09, 1.9, 0.225],
+      "scale": [1, 1, 1],
+      "rotation": [0, 0, 0]
+    },
+    {
+      "name": "right_eye",
+      "geometry": "SphereGeometry",
+      "material": "eye",
+      "position": [0.09, 1.9, 0.225],
+      "scale": [1, 1, 1],
+      "rotation": [0, 0, 0]
+    },
+    {
+      "name": "mouth",
+      "geometry": "BoxGeometry",
+      "material": "mouth",
+      "position": [0, 1.79, 0.237],
+      "scale": [1, 1, 1],
+      "rotation": [0.04, 0, 0]
+    }
+  ],
+  "animation": {
+    "type": "idle",
+    "description": "轻微呼吸上下浮动，身体小幅左右转动",
+    "breatheAmplitude": 0.012,
+    "breatheSpeed": 2.2,
+    "rotationAmplitude": 0.08,
+    "rotationSpeed": 0.55
+  },
+  "negativePrompt": [
+    "畸形五官",
+    "扭曲人体",
+    "错误手指",
+    "额外肢体",
+    "夸张网红脸",
+    "怪异身材",
+    "猎奇造型",
+    "高面数模型",
+    "材质丢失",
+    "贴图错位"
+  ]
+}
